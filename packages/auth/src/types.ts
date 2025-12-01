@@ -11,9 +11,9 @@ export interface BrandUser {
   id: string;
   user_id: string;
   brand_id: string;
-  role: "owner" | "admin" | "editor" | "reviewer" | "user";
+  role: "company_admin" | "owner" | "creator" | "reviewer" | "user";
   created_at: string;
 }
 
-export type BrandRole = "owner" | "admin" | "editor" | "reviewer" | "user";
+export type BrandRole = "company_admin" | "owner" | "creator" | "reviewer" | "user";
 

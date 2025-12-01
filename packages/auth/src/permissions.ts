@@ -57,9 +57,9 @@ export type Permission =
  * Role hierarchy (higher roles inherit permissions from lower roles)
  */
 export const ROLE_HIERARCHY: Record<BrandRole, number> = {
+  company_admin: 6,
   owner: 5,
-  admin: 4,
-  editor: 3,
+  creator: 3,
   reviewer: 2,
   user: 1,
 };
@@ -101,8 +101,8 @@ export const ROLE_PERMISSIONS: Record<BrandRole, Permission[]> = {
     'ai:train_models',
   ],
   
-  // Admin: Can manage users and most content, but not delete brand
-  admin: [
+  // Company Admin: ACT superadmin - can manage all brands and quotas
+  company_admin: [
     'content:view',
     'content:create',
     'content:edit',
@@ -133,8 +133,8 @@ export const ROLE_PERMISSIONS: Record<BrandRole, Permission[]> = {
     'ai:train_models',
   ],
   
-  // Editor: Can create and edit content, manage documents
-  editor: [
+  // Creator: Can create and edit content, manage documents
+  creator: [
     'content:view',
     'content:create',
     'content:edit',
@@ -219,9 +219,9 @@ export function getRolePermissions(role: BrandRole): Permission[] {
  */
 export function getRoleName(role: BrandRole): string {
   const names: Record<BrandRole, string> = {
+    company_admin: 'Company Admin',
     owner: 'Owner',
-    admin: 'Administrator',
-    editor: 'Editor',
+    creator: 'Creator',
     reviewer: 'Reviewer',
     user: 'User',
   };
@@ -233,9 +233,9 @@ export function getRoleName(role: BrandRole): string {
  */
 export function getRoleDescription(role: BrandRole): string {
   const descriptions: Record<BrandRole, string> = {
+    company_admin: 'ACT superadmin with full access to all brands, can manage quotas and top up tokens',
     owner: 'Full access to all brand features including user management and brand deletion',
-    admin: 'Can manage users, content, and brand settings but cannot delete the brand',
-    editor: 'Can create, edit, and publish content and manage documents',
+    creator: 'Can create, edit, and publish content and manage documents',
     reviewer: 'Can view and review content but cannot publish or edit',
     user: 'Basic read-only access to brand content and analytics',
   };

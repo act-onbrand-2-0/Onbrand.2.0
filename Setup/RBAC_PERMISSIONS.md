@@ -2,7 +2,9 @@
 
 ## Overview
 
-ACT 2.0 implements a comprehensive role-based access control system with 5 distinct roles, each with specific permissions for brand management.
+The ACT 2.0 platform implements a comprehensive **5-tier role system** with **40+ granular permissions**. Every user is assigned a role within each brand they belong to, and permissions are inherited hierarchically.
+
+**Updated:** December 2025 - New role structure with quota management.
 
 ## User Roles
 

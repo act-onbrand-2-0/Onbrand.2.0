@@ -8,8 +8,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "pnpm --filter act-frontend dev",
-    "build": "pnpm -r build",
+    "dev": "NODE_ENV=development pnpm --filter act-frontend dev",
+    "dev:staging": "NODE_ENV=staging pnpm --filter act-frontend dev",
+    "build": "NODE_ENV=production pnpm -r build",
+    "build:staging": "NODE_ENV=staging pnpm -r build",
     "test": "pnpm -r test",
     "test:ui": "pnpm -r test:ui",
     "test:coverage": "pnpm -r test:coverage",

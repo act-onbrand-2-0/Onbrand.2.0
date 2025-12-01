@@ -14,6 +14,9 @@
 ### 3. **n8n Integration**
 - `trigger-workflow` - Trigger n8n workflows with validation
 
+### 4. **Social Analytics** (getlate.dev)
+- `social-analytics` - Fetch and store social media metrics from getlate.dev
+
 ---
 
 ## Deployment Steps
@@ -32,6 +35,8 @@ supabase secrets set OPENAI_API_KEY=your_openai_key
 supabase secrets set ANTHROPIC_API_KEY=your_anthropic_key
 supabase secrets set REPLICATE_API_TOKEN=your_replicate_token
 supabase secrets set N8N_API_KEY=your_n8n_key
+supabase secrets set SOCIAL_ANALYTICS_KEY=your_getlate_key
+supabase secrets set GETLATE_API_URL=https://api.getlate.dev
 
 # Verify secrets
 supabase secrets list
@@ -47,6 +52,7 @@ supabase functions deploy replicate-proxy
 supabase functions deploy process-document
 supabase functions deploy search-documents
 supabase functions deploy trigger-workflow
+supabase functions deploy social-analytics
 ```
 
 ### 3. Function URLs
@@ -60,6 +66,7 @@ https://pyvobennsmzyvtaceopn.functions.supabase.co/replicate-proxy
 https://pyvobennsmzyvtaceopn.functions.supabase.co/process-document
 https://pyvobennsmzyvtaceopn.functions.supabase.co/search-documents
 https://pyvobennsmzyvtaceopn.functions.supabase.co/trigger-workflow
+https://pyvobennsmzyvtaceopn.functions.supabase.co/social-analytics
 ```
 
 ---

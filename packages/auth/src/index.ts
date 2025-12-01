@@ -5,4 +5,5 @@ export * from "./n8n-utils";
 export * from "./rag-utils";
 export * from "./env";
 export * from "./permissions";
+export * from "./storage-utils";
 

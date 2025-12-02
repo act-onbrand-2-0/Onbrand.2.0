@@ -31,6 +31,17 @@ export default function SignUpPage() {
     setSupabase(client);
   }, []);
 
+  // Extract brand from email domain
+  const getBrandFromEmail = (email: string): { slug: string; name: string } | null => {
+    if (!email || !email.includes('@')) return null;
+    const domain = email.split('@')[1];
+    const slug = domain.split('.')[0];
+    const name = slug.charAt(0).toUpperCase() + slug.slice(1);
+    return { slug, name };
+  };
+
+  const detectedBrand = getBrandFromEmail(email);
+
   const handleGeneratePassword = () => {
     const newPassword = generatePassword({ length: 16 });
     setPassword(newPassword);
@@ -221,6 +232,26 @@ export default function SignUpPage() {
                 className="block w-full rounded-lg border border-gray-300 px-4 py-3.5 text-gray-900 placeholder-gray-400 focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
                 placeholder="Email address"
               />
+              {/* Brand Detection Preview */}
+              {detectedBrand && (
+                <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-3">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 text-sm">
+                      <p className="text-blue-900 font-medium">
+                        Creating account for: <span className="font-bold">{detectedBrand.name}</span>
+                      </p>
+                      <p className="text-blue-700 text-xs mt-0.5">
+                        Brand ID: {detectedBrand.slug} (auto-detected from email domain)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Password Field with Generator */}

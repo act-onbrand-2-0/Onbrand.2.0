@@ -17,11 +17,21 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true);
-    const client = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    setSupabase(client);
+    
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setError('Supabase is not configured. Please check your .env.local file and ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.');
+      return;
+    }
+    
+    try {
+      const client = createClient(supabaseUrl, supabaseAnonKey);
+      setSupabase(client);
+    } catch (err) {
+      setError('Failed to initialize Supabase client. Please check your configuration.');
+    }
   }, []);
 
   const handleMicrosoftSignIn = async () => {

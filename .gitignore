@@ -65,3 +65,6 @@ playwright/.cache/
 # OS
 Thumbs.db
 
+
+# pnpm local store
+.pnpm-store/

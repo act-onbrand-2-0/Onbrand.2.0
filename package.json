@@ -8,21 +8,21 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "NODE_ENV=development pnpm --filter act-frontend dev",
-    "dev:staging": "NODE_ENV=staging pnpm --filter act-frontend dev",
-    "build": "NODE_ENV=production pnpm -r build",
-    "build:staging": "NODE_ENV=staging pnpm -r build",
-    "test": "pnpm -r test",
-    "test:ui": "pnpm -r test:ui",
-    "test:coverage": "pnpm -r test:coverage",
+    "dev": "NODE_ENV=development turbo run dev --filter=act-frontend",
+    "dev:staging": "NODE_ENV=staging turbo run dev --filter=act-frontend",
+    "build": "NODE_ENV=production turbo run build",
+    "build:staging": "NODE_ENV=staging turbo run build",
+    "test": "turbo run test",
+    "test:ui": "turbo run test:ui",
+    "test:coverage": "turbo run test:coverage",
     "test:e2e": "playwright test",
-    "lint": "pnpm -r lint",
-    "lint:fix": "pnpm -r lint:fix",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\"",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\"",
-    "type-check": "pnpm -r type-check",
-    "qa": "pnpm type-check && pnpm lint && pnpm format:check && pnpm test",
-    "qa:fix": "pnpm type-check && pnpm lint:fix && pnpm format"
+    "type-check": "turbo run type-check",
+    "qa": "turbo run type-check lint && pnpm format:check && turbo run test",
+    "qa:fix": "turbo run type-check lint:fix && pnpm format"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
@@ -37,6 +37,7 @@
     "playwright": "^1.41.0",
     "prettier": "^3.2.4",
     "prettier-plugin-tailwindcss": "^0.5.11",
+    "turbo": "^2.6.3",
     "typescript": "^5.3.3",
     "vitest": "^1.2.0"
   },
@@ -46,4 +47,3 @@
   },
   "packageManager": "pnpm@8.15.0"
 }
-

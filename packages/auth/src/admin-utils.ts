@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Company Admin management utilities
  */

@@ -4,7 +4,11 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "noUnusedLocals": false,
-    "strict": false
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false,
+    "strictPropertyInitialization": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

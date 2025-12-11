@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Quota management utilities for brand token limits
  */

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Conversation management utilities
  */

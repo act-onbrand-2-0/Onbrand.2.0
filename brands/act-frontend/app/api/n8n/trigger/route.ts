@@ -1,10 +1,29 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { type NextRequest } from 'next/server';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Tell Next.js this is a dynamic API route
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
+export const runtime = 'nodejs';
+
+
+// @ts-nocheck
+
+// Check if Supabase environment variables are available
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+
+// Only create client if keys are available
+const createSupabaseClient = () => {
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase credentials are missing');
+  }
+  
+  return createClient(supabaseUrl, supabaseKey);
+};
+
+// We'll initialize the client when it's actually needed
 
 /**
  * Trigger an n8n workflow by looking up its webhook URL from the database
@@ -16,8 +35,11 @@ const supabase = createClient(
  *   "data": { ... }
  * }
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Create Supabase client on demand to avoid initialization issues during build
+    const supabase = createSupabaseClient();
+
     const { brand_id, workflow_type, workflow_name, data } = await request.json();
 
     // Find the workflow in the database
@@ -112,8 +134,11 @@ export async function POST(request: Request) {
  * 
  * GET /api/n8n/trigger?brand_id=acme
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    // Create Supabase client on demand to avoid initialization issues during build
+    const supabase = createSupabaseClient();
+
     const { searchParams } = new URL(request.url);
     const brand_id = searchParams.get('brand_id');
 

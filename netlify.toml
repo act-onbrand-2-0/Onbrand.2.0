@@ -1,6 +1,6 @@
 [build]
   base = "."
-  command = "pnpm install --frozen-lockfile && pnpm turbo run build --filter=act-frontend"
+  command = "pnpm install --frozen-lockfile && cd brands/act-frontend && node ./build-netlify.js"
   publish = "brands/act-frontend/.next"
   functions = "brands/act-frontend/netlify/functions"
 

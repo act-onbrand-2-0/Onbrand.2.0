@@ -1,4 +1,4 @@
-import { createN8nWebhookHandler } from '@act/auth/n8n-utils';
+import { createN8nWebhookHandler } from '@act/auth';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 

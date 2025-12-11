@@ -25,7 +25,8 @@
     "resend": "^6.5.2",
     "tailwind-merge": "^2.1.0",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "@act/auth": "workspace:*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",

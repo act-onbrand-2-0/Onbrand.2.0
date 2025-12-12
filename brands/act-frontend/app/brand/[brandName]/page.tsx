@@ -1,79 +1,114 @@
-"use client";
+import { getBrandConfig } from '../../../lib/brand';
+import { notFound } from 'next/navigation';
 
-import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-
-// Brand-specific page component
-export default function BrandPage() {
-  const params = useParams();
-  const brandName = params.brandName as string;
-  const [brandData, setBrandData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Here you would fetch brand-specific data based on the brandName
-    const fetchBrandData = async () => {
-      try {
-        // Replace with your actual API call to get brand data
-        // const response = await fetch(`/api/brands/${brandName}`);
-        // const data = await response.json();
-        
-        // For now, just mock the data
-        const mockData = {
-          name: brandName,
-          displayName: brandName.charAt(0).toUpperCase() + brandName.slice(1),
-          theme: {
-            primaryColor: '#4a90e2',
-          }
-        };
-        
-        setBrandData(mockData);
-      } catch (error) {
-        console.error('Error fetching brand data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBrandData();
-  }, [brandName]);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p className="text-xl">Loading {brandName} experience...</p>
+// Brand content components
+function BrandHero({ brandConfig }: { brandConfig: any }) {
+  return (
+    <div className="py-12 px-4 bg-gradient-to-b from-transparent to-gray-50">
+      <div className="container mx-auto max-w-5xl">
+        <h1 className="text-4xl font-bold mb-4" style={{ color: brandConfig.colors.primary }}>
+          Welcome to {brandConfig.displayName}
+        </h1>
+        <p className="text-lg mb-8">
+          This is a custom branded experience tailored for {brandConfig.displayName} customers.
+        </p>
+        <div className="flex gap-4">
+          <button 
+            className="px-6 py-2 rounded-md" 
+            style={{ 
+              backgroundColor: brandConfig.colors.primary,
+              color: '#fff' 
+            }}
+          >
+            Get Started
+          </button>
+          <button 
+            className="px-6 py-2 rounded-md border" 
+            style={{ 
+              borderColor: brandConfig.colors.primary,
+              color: brandConfig.colors.primary 
+            }}
+          >
+            Learn More
+          </button>
+        </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  if (!brandData) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p className="text-xl">Brand not found</p>
+function BrandFeatures({ brandConfig }: { brandConfig: any }) {
+  const features = [
+    {
+      title: 'Brand Guidelines',
+      description: 'Access your complete brand guidelines and resources.',
+    },
+    {
+      title: 'Content Management',
+      description: 'Create and manage content with your brand voice.',
+    },
+    {
+      title: 'Analytics',
+      description: 'Track performance of your brand content across channels.',
+    },
+  ];
+
+  return (
+    <div className="py-12 px-4 bg-white">
+      <div className="container mx-auto max-w-5xl">
+        <h2 className="text-2xl font-bold mb-8 text-center">
+          {brandConfig.displayName} Features
+        </h2>
+        <div className="grid md:grid-cols-3 gap-8">
+          {features.map((feature, index) => (
+            <div key={index} className="p-6 border rounded-lg hover:shadow-md transition-shadow">
+              <h3 className="text-xl font-semibold mb-3" style={{ color: brandConfig.colors.primary }}>
+                {feature.title}
+              </h3>
+              <p className="text-gray-600">
+                {feature.description}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
-    );
+    </div>
+  );
+}
+
+// Server component to fetch brand data and render page
+export default function BrandPage({ params }: { params: { brandName: string } }) {
+  const { brandName } = params;
+  const brandConfig = getBrandConfig();
+  
+  // If the brandName in the URL doesn't match the detected brand, show 404
+  // This prevents users from accessing other brand pages
+  if (brandName !== brandConfig.id) {
+    notFound();
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <header className="mb-8 pb-4 border-b">
-        <h1 className="text-3xl font-bold" style={{ color: brandData.theme.primaryColor }}>
-          Welcome to {brandData.displayName} OnBrand Experience
-        </h1>
-      </header>
+    <div>
+      <BrandHero brandConfig={brandConfig} />
+      <BrandFeatures brandConfig={brandConfig} />
       
-      <main>
-        <p className="text-lg mb-4">
-          This is a custom branded experience for {brandData.displayName}.
-        </p>
-        
-        <div className="bg-gray-100 p-6 rounded-lg">
-          <h2 className="text-xl font-semibold mb-2">Brand Information</h2>
-          <p><strong>Brand ID:</strong> {brandName}</p>
-          <p><strong>Display Name:</strong> {brandData.displayName}</p>
-          <p><strong>Primary Color:</strong> {brandData.theme.primaryColor}</p>
+      <div className="container mx-auto max-w-5xl py-12 px-4">
+        <div className="bg-gray-50 p-6 rounded-lg border">
+          <h2 className="text-xl font-semibold mb-4">
+            Brand Information
+          </h2>
+          <div className="space-y-2">
+            <p><strong>Brand ID:</strong> {brandConfig.id}</p>
+            <p><strong>Display Name:</strong> {brandConfig.displayName}</p>
+            <p>
+              <strong>Brand Colors:</strong> 
+              <span className="ml-2 inline-block w-4 h-4 rounded-full" style={{ backgroundColor: brandConfig.colors.primary }}></span>
+              <span className="ml-2 inline-block w-4 h-4 rounded-full" style={{ backgroundColor: brandConfig.colors.secondary }}></span>
+              <span className="ml-2 inline-block w-4 h-4 rounded-full" style={{ backgroundColor: brandConfig.colors.accent }}></span>
+            </p>
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

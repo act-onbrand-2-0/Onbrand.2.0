@@ -7,7 +7,12 @@ export function middleware(request: NextRequest) {
   
   // Extract subdomain
   // Examples: nike.onbrand.ai -> nike, localhost:3000 -> localhost
-  const subdomain = hostname.split('.')[0];
+  let subdomain = hostname.split('.')[0];
+  
+  // Handle localhost with port
+  if (subdomain.includes(':')) {
+    subdomain = subdomain.split(':')[0];
+  }
   
   console.log('Middleware - hostname:', hostname, 'subdomain:', subdomain);
   
@@ -41,7 +46,7 @@ export function middleware(request: NextRequest) {
 // Configure which routes the middleware runs on
 export const config = {
   matcher: [
-    // Match all routes except static files and API routes
-    '/((?!_next/static|_next/image|favicon.ico|public|api).*)',
+    // Match all routes including API routes for testing
+    '/((?!_next/static|_next/image|favicon.ico|public).*)',
   ],
 };

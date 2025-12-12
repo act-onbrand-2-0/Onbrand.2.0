@@ -66,18 +66,16 @@ export function detectBrandId(): string {
   // Server-side: read from middleware header
   if (typeof window === 'undefined') {
     try {
-      const { headers } = require('next/headers');
-      const headersList = headers();
-      const subdomain = headersList.get('x-brand-subdomain');
+      // In Next.js App Router, we should avoid using headers() in a synchronous function
+      // Instead, we'll rely on alternative detection methods for server components
+      // This is a limitation of Next.js 15+ where headers() returns a Promise
       
-      if (subdomain && subdomain !== 'localhost' && subdomain !== 'www') {
-        // Check if subdomain matches a known brand
-        if (BRAND_CONFIGS[subdomain]) {
-          return subdomain;
-        }
+      // We'll use the environment variable as fallback for server components
+      if (process.env.NEXT_PUBLIC_BRAND_ID) {
+        return process.env.NEXT_PUBLIC_BRAND_ID;
       }
     } catch (e) {
-      console.error('Error reading headers:', e);
+      console.error('Error in server-side brand detection:', e);
     }
   }
   

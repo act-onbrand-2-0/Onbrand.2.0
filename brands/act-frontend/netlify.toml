@@ -1,5 +1,5 @@
 [build]
-  command = "cd ../.. && pnpm --filter=act-frontend exec next build"
+  command = "cd ../.. && pnpm --filter=act-frontend exec pnpm netlify:build"
   publish = "brands/act-frontend/.next"
 
 [build.environment]

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3003",
     "build": "next build",
+    "netlify:build": "NEXT_TELEMETRY_DISABLED=1 NEXT_SKIP_API_DIRECTORY=true next build",
     "build:netlify": "node ./build-netlify.js",
     "start": "next start",
     "lint": "eslint",

@@ -1,5 +1,7 @@
 import { getBrandConfig } from '../../../lib/brand';
 import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 
 // Brand content components
 function BrandHero({ brandConfig }: { brandConfig: any }) {
@@ -76,14 +78,37 @@ function BrandFeatures({ brandConfig }: { brandConfig: any }) {
   );
 }
 
+// For server-side tenant isolation
+async function checkUserAccess(brandId: string): Promise<boolean> {
+  // In production, check user access to brand
+  // For now, we'll just allow access in development
+  if (process.env.NODE_ENV === 'production') {
+    // In production, you'd implement proper authentication
+    // This would use server-side Supabase client to check
+    // if the user has access to this brand
+    return true;
+  }
+  
+  // For development, allow access to all brands
+  return true;
+}
+
 // Server component to fetch brand data and render page
-export default function BrandPage({ params }: { params: { brandName: string } }) {
+export default async function BrandPage({ params }: { params: { brandName: string } }) {
   const { brandName } = params;
   const brandConfig = getBrandConfig();
-  
+
   // If the brandName in the URL doesn't match the detected brand, show 404
   // This prevents users from accessing other brand pages
   if (brandName !== brandConfig.id) {
+    notFound();
+  }
+  
+  // Check if user has access to the requested brand
+  const hasAccess = await checkUserAccess(brandName);
+  
+  // If no access, show 404 page
+  if (!hasAccess) {
     notFound();
   }
 

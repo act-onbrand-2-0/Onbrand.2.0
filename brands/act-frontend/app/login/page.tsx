@@ -69,15 +69,28 @@ export default function LoginPage() {
       setLoading(true);
       setError('');
       
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
       
-      // Redirect to dashboard
-      window.location.href = '/dashboard';
+      // Extract brand from email domain
+      const emailDomain = email.split('@')[1];
+      const brandSlug = emailDomain?.split('.')[0] || 'act';
+      
+      // Check if brand exists
+      const { data: brandData } = await supabase
+        .from('brands')
+        .select('id')
+        .eq('id', brandSlug)
+        .single();
+      
+      const targetBrand = brandData ? brandSlug : 'act';
+      
+      // Redirect to brand page or dashboard
+      window.location.href = `/brand/${targetBrand}`;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in');
       setLoading(false);

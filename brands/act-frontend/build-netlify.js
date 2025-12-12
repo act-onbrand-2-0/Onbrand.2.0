@@ -24,7 +24,6 @@ fs.writeFileSync(
   nextConfigPath,
   `
 // This is a temporary config file for Netlify build that skips API routes
-const { withConfig } = require('next/config');
 const originalConfig = require('./next.config.ts');
 
 module.exports = {
@@ -33,7 +32,10 @@ module.exports = {
   eslint: { ignoreDuringBuilds: true },
   modularizeImports: {}, // Simplified
   experimental: {}, // Simplified
-  pageExtensions: ['tsx', 'ts'].filter(ext => ext !== 'api.ts'), // Skip API routes
+  // Skip API routes and specify correct page extensions for Next.js 16
+  skipMiddlewareUrlNormalize: true,
+  skipTrailingSlashRedirect: true,
+  pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'mdx'],
 };
 `, 
   'utf-8'

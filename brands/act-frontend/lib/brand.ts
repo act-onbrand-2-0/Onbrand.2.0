@@ -45,6 +45,18 @@ const BRAND_CONFIGS: Record<string, BrandConfig> = {
       accent: '#F59E0B',
     },
   },
+  nike: {
+    id: 'nike',
+    name: 'nike',
+    displayName: 'Nike Brand Portal',
+    domain: 'nike',
+    colors: {
+      primary: '#FF2B19',
+      secondary: '#FFFFFF',
+      accent: '#000000',
+    },
+    logo: '/brands/nike/logo.svg',
+  },
   // Add more brands here as needed
 };
 

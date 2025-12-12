@@ -38,6 +38,23 @@ const brandDataStore: Record<string, any> = {
       { id: '3', title: 'Email Newsletter', date: '2025-10-08', status: 'Draft' },
       { id: '4', title: 'Annual Report', date: '2025-10-15', status: 'Draft' }
     ]
+  },
+  'nike': {
+    name: 'Nike Brand Portal',
+    description: 'Brand management for Nike products and campaigns',
+    metrics: {
+      contentCount: 87,
+      contentViews: 6543,
+      brandScore: '92%',
+      activeUsers: 32
+    },
+    recentContent: [
+      { id: '1', title: 'Summer Campaign 2026', date: '2025-10-15', status: 'Draft' },
+      { id: '2', title: 'Athlete Endorsements', date: '2025-10-10', status: 'Published' },
+      { id: '3', title: 'Product Launch - Air Max 2026', date: '2025-10-05', status: 'Review' },
+      { id: '4', title: 'Brand Guidelines Update', date: '2025-09-28', status: 'Published' },
+      { id: '5', title: 'Social Media Assets', date: '2025-09-22', status: 'Published' }
+    ]
   }
 };
 

@@ -64,10 +64,10 @@ export async function middleware(request: NextRequest) {
     hostname === 'www.onbrandai.app' ||
     hostname.startsWith('localhost')
   ) {
-    // Redirect to marketing page for parent domain
-    if (url.pathname === '/' || url.pathname === '') {
-      return NextResponse.rewrite(new URL('/marketing', request.url));
-    }
+    // Commented out to show new home page implementation
+    // if (url.pathname === '/' || url.pathname === '') {
+    //   return NextResponse.rewrite(new URL('/marketing', request.url));
+    // }
   }
   
   // Get the brand from URL path if it exists (already checked above)

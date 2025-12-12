@@ -5,7 +5,7 @@
   functions = "brands/act-frontend/netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "18.20.8"
+  NODE_VERSION = "20.12.1"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

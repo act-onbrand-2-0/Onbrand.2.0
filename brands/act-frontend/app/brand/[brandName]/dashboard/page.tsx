@@ -29,7 +29,7 @@ export default async function BrandDashboard({ params }: { params: { brandName: 
   return (
     <div className="py-8 px-4">
       <div className="container mx-auto max-w-6xl">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <button 
             className="px-4 py-2 rounded-md text-white"
@@ -37,6 +37,16 @@ export default async function BrandDashboard({ params }: { params: { brandName: 
           >
             Create New
           </button>
+        </div>
+        
+        {/* Welcome Banner */}
+        <div 
+          className="p-6 rounded-lg mb-8 text-white" 
+          style={{ backgroundColor: brandConfig.colors.primary }}
+        >
+          <h2 className="text-xl font-semibold mb-2">Welcome to {brandConfig.displayName}</h2>
+          <p className="mb-2">Your brand portal has been set up successfully.</p>
+          <p>This multi-tenant application now recognizes your subdomain and provides a custom branded experience.</p>
         </div>
         
         {/* Metrics Overview */}

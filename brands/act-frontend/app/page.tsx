@@ -1,11 +1,22 @@
 import { redirect } from 'next/navigation';
-import { isValidBrand } from '../lib/brand';
+import { getBrandConfig, isValidBrand } from '../lib/brand';
 
 /**
  * Root page that handles routing based on domain/subdomain
- * Simplified to avoid headers() Promise issues
+ * Redirects to the brand-specific dashboard or login
  */
 export default function Home() {
-  // For simplicity, we'll just redirect to the test page
-  redirect('/test-middleware');
+  // Get the brand from middleware detection
+  const brandConfig = getBrandConfig();
+  
+  // Check if the user is logged in (would do proper auth check in production)
+  const isLoggedIn = false; // For demo, force login flow
+  
+  if (isLoggedIn) {
+    // If logged in, go to the dashboard
+    redirect(`/brand/${brandConfig.id}/dashboard`);
+  } else {
+    // If not logged in, go to the login page
+    redirect('/login');
+  }
 }

@@ -1,6 +1,6 @@
 [build]
-  command = "next build"
-  publish = ".next"
+  command = "cd ../.. && pnpm --filter=act-frontend exec next build"
+  publish = "brands/act-frontend/.next"
 
 [build.environment]
   NETLIFY_NEXT_PLUGIN_SKIP = "true"

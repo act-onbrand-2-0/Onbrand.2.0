@@ -1,3 +1,5 @@
+'use client';
+
 // Completely static global error page
 export default function GlobalError() {
   return (

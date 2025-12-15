@@ -4,7 +4,7 @@ import { getBrandConfig, isValidBrand } from '../../../lib/brand';
 
 interface BrandLayoutProps {
   children: ReactNode;
-  params: { brandName: string };
+  params: Promise<{ brandName: string }>;
 }
 
 function BrandHeader({ brandConfig }: { brandConfig: any }) {
@@ -80,7 +80,7 @@ function BrandFooter({ brandConfig }: { brandConfig: any }) {
 
 export default async function BrandLayout({ children, params }: BrandLayoutProps) {
   // Get the brand configuration from the URL parameter
-  const { brandName } = params;
+  const { brandName } = await params;
   
   // Check if this is a valid brand
   const validBrand = isValidBrand(brandName);

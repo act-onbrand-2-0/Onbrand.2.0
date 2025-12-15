@@ -56,10 +56,10 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  experimental: {
-    // Enable middleware for subdomain handling
-    middleware: true,
-  },
+  // Use standalone output for better compatibility
+  output: 'standalone',
+  // Skip static generation for problematic routes
+  skipTrailingSlashRedirect: true,
 };
 
 export default nextConfig;

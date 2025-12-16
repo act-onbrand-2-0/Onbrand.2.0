@@ -567,6 +567,132 @@ export function BrandGuidelinesSettings({ guidelines, brandId, onUpdate }: Brand
           </div>
         </ExpandableSection>
       )}
+
+      {/* Logo Assets */}
+      {localGuidelines.logoAssets && (
+        <ExpandableSection title="Logo Assets" icon="🎨" defaultExpanded={false}>
+          <div className="space-y-6">
+            {/* Extracted Logos from PDF */}
+            {localGuidelines.logoAssets.extractedImages && localGuidelines.logoAssets.extractedImages.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">
+                  Logos Found in Document ({localGuidelines.logoAssets.extractedImages.length})
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {localGuidelines.logoAssets.extractedImages.map((logo: any, index: number) => (
+                    <div key={index} className="bg-white border-2 border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center">
+                          <span className="text-2xl">🎨</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 mb-1">
+                            Page {logo.pageNumber}
+                            {logo.location && ` - ${logo.location}`}
+                          </p>
+                          {logo.description && (
+                            <p className="text-xs text-gray-600 line-clamp-2">
+                              {logo.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Primary Logo Info */}
+            {localGuidelines.logoAssets.primaryLogo && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">Primary Logo</h4>
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
+                  {localGuidelines.logoAssets.primaryLogo.description && (
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium">Description:</span> {localGuidelines.logoAssets.primaryLogo.description}
+                    </p>
+                  )}
+                  {localGuidelines.logoAssets.primaryLogo.colorVersions && localGuidelines.logoAssets.primaryLogo.colorVersions.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-600 mb-2">Color Versions:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {localGuidelines.logoAssets.primaryLogo.colorVersions.map((version: string, i: number) => (
+                          <span key={i} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                            {version}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {localGuidelines.logoAssets.primaryLogo.minSize && (
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium">Min Size:</span> {localGuidelines.logoAssets.primaryLogo.minSize}
+                    </p>
+                  )}
+                  {localGuidelines.logoAssets.primaryLogo.clearSpace && (
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium">Clear Space:</span> {localGuidelines.logoAssets.primaryLogo.clearSpace}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Alternative Logos */}
+            {localGuidelines.logoAssets.alternativeLogos && localGuidelines.logoAssets.alternativeLogos.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">Alternative Logos</h4>
+                <div className="space-y-3">
+                  {localGuidelines.logoAssets.alternativeLogos.map((logo: any, index: number) => (
+                    <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                      {logo.name && (
+                        <p className="text-sm font-medium text-gray-900 mb-1">{logo.name}</p>
+                      )}
+                      {logo.description && (
+                        <p className="text-xs text-gray-600 mb-1">{logo.description}</p>
+                      )}
+                      {logo.usage && (
+                        <p className="text-xs text-gray-500">Usage: {logo.usage}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Usage Guidelines */}
+            {localGuidelines.logoAssets.usageGuidelines && localGuidelines.logoAssets.usageGuidelines.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">Usage Guidelines</h4>
+                <ul className="space-y-2">
+                  {localGuidelines.logoAssets.usageGuidelines.map((guideline: string, index: number) => (
+                    <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                      <span className="text-green-600 mt-0.5">✓</span>
+                      <span>{guideline}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Restrictions */}
+            {localGuidelines.logoAssets.restrictions && localGuidelines.logoAssets.restrictions.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">Restrictions</h4>
+                <ul className="space-y-2">
+                  {localGuidelines.logoAssets.restrictions.map((restriction: string, index: number) => (
+                    <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                      <span className="text-red-600 mt-0.5">✗</span>
+                      <span>{restriction}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </ExpandableSection>
+      )}
     </div>
   );
 }

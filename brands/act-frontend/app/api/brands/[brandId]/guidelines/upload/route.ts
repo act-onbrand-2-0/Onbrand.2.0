@@ -1,8 +1,8 @@
 import { extractTextFromPdfBuffer, chunkTextForAI } from '@/lib/ai/pdf-extractor';
 import { extractGuidelines } from '@/lib/ai/agent';
 import { saveGuidelinesAsDraft } from '@/lib/ai/guidelines-db';
-import { extractLogosFromPdfWithVision } from '@/lib/ai/vision-extractor';
-import { createClient } from '@supabase/supabase-js';
+import { extractLogoImagesFromPdf, ExtractedImage } from '@/lib/ai/vision-extractor';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -19,6 +19,76 @@ function getSupabase() {
     throw new Error('Supabase credentials are missing');
   }
   return createClient(supabaseUrl, supabaseKey);
+}
+
+/**
+ * Upload extracted images to Supabase Storage and return their URLs
+ */
+async function uploadExtractedImages(
+  supabase: SupabaseClient,
+  brandId: string,
+  images: ExtractedImage[]
+): Promise<Array<{
+  url: string;
+  pageNumber: number;
+  description: string;
+  isMainLogo: boolean;
+  width: number;
+  height: number;
+}>> {
+  const uploadedImages: Array<{
+    url: string;
+    pageNumber: number;
+    description: string;
+    isMainLogo: boolean;
+    width: number;
+    height: number;
+  }> = [];
+
+  for (let i = 0; i < images.length; i++) {
+    const image = images[i];
+    try {
+      // Convert base64 to buffer
+      const imageBuffer = Buffer.from(image.base64Data, 'base64');
+      
+      // Generate unique filename
+      const timestamp = Date.now();
+      const fileName = `${brandId}/logos/${timestamp}-logo-${i + 1}.png`;
+      
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('brand-assets')
+        .upload(fileName, imageBuffer, {
+          contentType: image.mimeType,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error(`Failed to upload image ${i + 1}:`, uploadError);
+        continue;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('brand-assets')
+        .getPublicUrl(fileName);
+
+      uploadedImages.push({
+        url: urlData.publicUrl,
+        pageNumber: image.pageNumber,
+        description: image.description,
+        isMainLogo: image.isMainLogo,
+        width: image.width,
+        height: image.height,
+      });
+
+      console.log(`Uploaded logo image: ${fileName}`);
+    } catch (error) {
+      console.error(`Failed to upload image ${i + 1}:`, error);
+    }
+  }
+
+  return uploadedImages;
 }
 
 /**
@@ -169,11 +239,11 @@ export async function POST(
 
     console.log(`Processing ${contentToProcess.length} characters with AI`);
     
-    // Extract guidelines and logos in parallel
-    const [guidelines, extractedLogos] = await Promise.all([
+    // Extract guidelines and logo images in parallel
+    const [guidelines, extractedLogoImages] = await Promise.all([
       extractGuidelines(contentToProcess, brand.display_name),
-      extractLogosFromPdfWithVision(buffer, 5).catch(err => {
-        console.warn('Logo extraction failed:', err);
+      extractLogoImagesFromPdf(buffer, 5).catch(err => {
+        console.warn('Logo image extraction failed:', err);
         return []; // Continue even if logo extraction fails
       }),
     ]);
@@ -193,29 +263,39 @@ export async function POST(
       );
     }
 
-    // Prepare logo assets from extracted logos
-    const logoAssets = extractedLogos.length > 0 ? {
-      primaryLogo: extractedLogos.find(l => l.isMainLogo) ? {
-        description: extractedLogos.find(l => l.isMainLogo)?.description,
-        colorVersions: extractedLogos
-          .filter(l => l.isMainLogo && l.colorScheme)
-          .map(l => l.colorScheme!),
+    // Upload extracted images to Supabase Storage
+    console.log(`Uploading ${extractedLogoImages.length} extracted logo images...`);
+    const uploadedImages = await uploadExtractedImages(supabase, brandId, extractedLogoImages);
+    console.log(`Successfully uploaded ${uploadedImages.length} logo images`);
+
+    // Prepare logo assets with uploaded image URLs
+    const mainLogo = uploadedImages.find(img => img.isMainLogo);
+    const logoAssets = uploadedImages.length > 0 ? {
+      primaryLogo: mainLogo ? {
+        description: mainLogo.description,
+        imageUrl: mainLogo.url,
+        colorVersions: uploadedImages
+          .filter(img => img.isMainLogo)
+          .map((_, i) => i === 0 ? 'primary' : `variant-${i}`),
       } : undefined,
-      alternativeLogos: extractedLogos
-        .filter(l => !l.isMainLogo)
-        .map(l => ({
-          name: `Logo from page ${l.pageNumber}`,
-          description: l.description,
-          usage: `Found at ${l.location}`,
+      alternativeLogos: uploadedImages
+        .filter(img => !img.isMainLogo)
+        .map((img, i) => ({
+          name: `Logo ${i + 1} from page ${img.pageNumber}`,
+          description: img.description,
+          imageUrl: img.url,
         })),
-      extractedImages: extractedLogos.map(l => ({
-        pageNumber: l.pageNumber,
-        description: l.description,
-        location: l.location,
+      extractedImages: uploadedImages.map(img => ({
+        url: img.url,
+        pageNumber: img.pageNumber,
+        width: img.width,
+        height: img.height,
+        description: img.description,
+        isMainLogo: img.isMainLogo,
       })),
     } : undefined;
 
-    console.log(`Extracted ${extractedLogos.length} logos from PDF`);
+    console.log(`Processed ${uploadedImages.length} logo images from PDF`);
 
     // Save extracted guidelines as draft
     const saved = await saveGuidelinesAsDraft(
@@ -255,6 +335,8 @@ export async function POST(
         visualGuidelines: guidelines.visualGuidelines,
         messaging: guidelines.messaging,
         suggestions: guidelines.suggestions,
+        logoAssets: logoAssets,
+        extractedImages: uploadedImages,
       },
       message: 'Guidelines extracted successfully. Please review and approve.',
       nextStep: `/api/brands/${brandId}/guidelines/approve`,

@@ -183,6 +183,8 @@ export interface LogoAssets {
     pageNumber: number;
     width?: number;
     height?: number;
+    description?: string;
+    isMainLogo?: boolean;
   }>;
 }
 

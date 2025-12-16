@@ -1,12 +1,22 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Image as ImageIcon, Download } from 'lucide-react';
+import Image from 'next/image';
 
 interface UploadState {
   status: 'idle' | 'uploading' | 'processing' | 'extracted' | 'approved' | 'error';
   progress?: number;
   message?: string;
+}
+
+interface ExtractedImage {
+  url: string;
+  pageNumber: number;
+  description?: string;
+  isMainLogo?: boolean;
+  width?: number;
+  height?: number;
 }
 
 interface ExtractedGuidelines {
@@ -55,6 +65,20 @@ interface ExtractedGuidelines {
     tagline?: string;
     boilerplate?: string;
   };
+  logoAssets?: {
+    primaryLogo?: {
+      description?: string;
+      imageUrl?: string;
+      colorVersions?: string[];
+    };
+    alternativeLogos?: Array<{
+      name?: string;
+      description?: string;
+      imageUrl?: string;
+    }>;
+    extractedImages?: ExtractedImage[];
+  };
+  extractedImages?: ExtractedImage[];
   confidence?: number;
 }
 
@@ -736,6 +760,20 @@ export function BrandGuidelinesUpload({ brandId, brandName, onGuidelinesApproved
                 )}
               </GuidelineSection>
             )}
+
+            {/* Extracted Logo Images */}
+            {(extraction.extractedImages?.length || extraction.logoAssets?.extractedImages?.length) ? (
+              <GuidelineSection title="Extracted Logo Images" icon="🖼️">
+                <p className="text-sm text-gray-600 mb-4">
+                  The following logos were automatically extracted from your brand guidelines document.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {(extraction.extractedImages || extraction.logoAssets?.extractedImages || []).map((img, i) => (
+                    <ExtractedImageCard key={i} image={img} index={i} />
+                  ))}
+                </div>
+              </GuidelineSection>
+            ) : null}
           </div>
 
           {/* Approve Button */}
@@ -767,6 +805,128 @@ function GuidelineSection({ title, icon, children }: { title: string; icon: stri
       <div className="text-gray-700">
         {children}
       </div>
+    </div>
+  );
+}
+
+function ExtractedImageCard({ image, index }: { image: ExtractedImage; index: number }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(image.url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `logo-${index + 1}-page-${image.pageNumber}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+    }
+  };
+  
+  return (
+    <div className="relative group">
+      <div 
+        className={`border rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
+          image.isMainLogo ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+        }`}
+        onClick={() => setIsExpanded(true)}
+      >
+        {image.isMainLogo && (
+          <div className="absolute top-1 left-1 z-10 px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full font-medium">
+            Main Logo
+          </div>
+        )}
+        <div className="relative w-full aspect-square bg-gray-100 flex items-center justify-center p-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={image.url}
+            alt={image.description || `Extracted logo ${index + 1}`}
+            className="max-w-full max-h-full object-contain"
+          />
+        </div>
+        <div className="p-2 border-t bg-gray-50">
+          <p className="text-xs text-gray-500 truncate" title={image.description}>
+            Page {image.pageNumber}
+          </p>
+          {image.width && image.height && (
+            <p className="text-xs text-gray-400">
+              {image.width} × {image.height}px
+            </p>
+          )}
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDownload();
+          }}
+          className="absolute bottom-2 right-2 p-1.5 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
+          title="Download logo"
+        >
+          <Download className="w-4 h-4 text-gray-600" />
+        </button>
+      </div>
+      
+      {/* Expanded Modal */}
+      {isExpanded && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setIsExpanded(false)}
+        >
+          <div 
+            className="bg-white rounded-xl p-6 max-w-2xl max-h-[90vh] overflow-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="font-semibold text-lg text-gray-900">
+                  {image.isMainLogo ? 'Main Logo' : `Logo ${index + 1}`}
+                </h3>
+                <p className="text-sm text-gray-500">From page {image.pageNumber}</p>
+              </div>
+              <button
+                onClick={() => setIsExpanded(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="bg-gray-100 rounded-lg p-4 flex items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={image.url}
+                alt={image.description || `Extracted logo ${index + 1}`}
+                className="max-w-full max-h-[50vh] object-contain"
+              />
+            </div>
+            {image.description && (
+              <p className="mt-4 text-sm text-gray-600">{image.description}</p>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={handleDownload}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Download PNG
+              </button>
+              <a
+                href={image.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Open in New Tab
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

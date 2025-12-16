@@ -1,13 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
 import { User, Building2, Shield, LogOut, MessageSquare } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createClient();
 
 interface BrandUser {
   brand_id: string;
@@ -293,7 +290,10 @@ export default function DashboardPage() {
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <button className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-black hover:bg-gray-50 transition-colors">
+            <button
+              onClick={() => (window.location.href = '/chat')}
+              className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-black hover:bg-gray-50 transition-colors"
+            >
               <MessageSquare className="h-8 w-8 text-gray-600" />
               <span className="text-sm font-medium text-gray-900">Start Chat</span>
             </button>

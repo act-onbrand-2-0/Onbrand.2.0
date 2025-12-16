@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
 // Removed Github import - using Microsoft OAuth instead
 import Link from 'next/link';
 import { detectBrandId, getBrandCallbackUrl } from '@/lib/brand';
@@ -20,15 +20,13 @@ export default function LoginPage() {
     
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
     if (!supabaseUrl || !supabaseAnonKey) {
       setError('Supabase is not configured. Please check your .env.local file and ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.');
       return;
     }
     
     try {
-      const client = createClient(supabaseUrl, supabaseAnonKey);
-      setSupabase(client);
+      setSupabase(createClient());
     } catch (err) {
       setError('Failed to initialize Supabase client. Please check your configuration.');
     }

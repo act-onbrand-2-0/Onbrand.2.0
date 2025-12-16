@@ -14,9 +14,14 @@
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@act/auth": "workspace:*",
+    "@ai-sdk/anthropic": "^2.0.56",
     "@ai-sdk/openai": "^2.0.75",
+    "@ai-sdk/react": "2.0.109",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.39.0",
-    "ai": "^4.0.0",
+    "ai": "^5.0.108",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "lucide-react": "^0.294.0",
@@ -26,8 +31,7 @@
     "resend": "^6.5.2",
     "tailwind-merge": "^2.1.0",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.22.4",
-    "@act/auth": "workspace:*"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",

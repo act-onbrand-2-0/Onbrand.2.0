@@ -1,5 +1,8 @@
 export type BrandId = "act" | "globex";
 
+/**
+ * Static brand configuration (hardcoded per-brand settings)
+ */
 export interface BrandConfig {
   id: BrandId;
   name: string;
@@ -8,6 +11,60 @@ export interface BrandConfig {
   logoPath?: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
+}
+
+/**
+ * Dynamic brand guidelines (loaded from database)
+ * These are AI-extracted and user-approved per brand.
+ */
+export interface BrandGuidelinesConfig {
+  brandId: BrandId;
+  status: 'draft' | 'pending_review' | 'approved' | 'archived';
+  voice: {
+    personality: string[];
+    tone: string;
+    writeAs: string;
+    audienceLevel: string;
+  };
+  copyGuidelines: {
+    dos: Array<{ rule: string; example?: string; why?: string }>;
+    donts: Array<{ rule: string; badExample: string; goodExample: string }>;
+    wordChoices: Array<{ avoid: string; prefer: string }>;
+    phrases: {
+      required: string[];
+      banned: string[];
+    };
+  };
+  visualGuidelines: {
+    colors: {
+      primary: string;
+      secondary: string;
+      accent: string;
+      neutrals: string[];
+      usage: string;
+    };
+    typography: {
+      headings: { family: string; weights: string[] };
+      body: { family: string; weights: string[] };
+      usage: string;
+    };
+    imagery: {
+      style: string;
+      avoid: string[];
+      prefer: string[];
+    };
+    logo: {
+      clearSpace: string;
+      minSize: string;
+      donts: string[];
+    };
+  };
+  messaging: {
+    pillars: string[];
+    valueProposition: string;
+    tagline: string;
+    boilerplate: string;
+  };
 }
 
 const brands: Record<BrandId, BrandConfig> = {

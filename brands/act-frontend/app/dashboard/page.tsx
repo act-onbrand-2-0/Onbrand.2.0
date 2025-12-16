@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { User, Building2, Shield, LogOut, MessageSquare } from 'lucide-react';
+import { User, Building2, Shield, LogOut, MessageSquare, Settings, X } from 'lucide-react';
+import Link from 'next/link';
+import { BrandGuidelinesUpload } from '@/components/brand/BrandGuidelinesUpload';
+import { BrandGuidelinesSettings } from '@/components/brand/BrandGuidelinesSettings';
+import { getBrandGuidelines } from '@/lib/ai/guidelines-db';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,6 +33,9 @@ export default function DashboardPage() {
   const [brandUser, setBrandUser] = useState<BrandUser | null>(null);
   const [quota, setQuota] = useState<Quota | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showBrandSettings, setShowBrandSettings] = useState(false);
+  const [guidelines, setGuidelines] = useState<any>(null);
+  const [settingsView, setSettingsView] = useState<'upload' | 'settings'>('settings');
 
   useEffect(() => {
     loadUserData();
@@ -98,6 +105,14 @@ export default function DashboardPage() {
       } else {
         console.warn('No brand assignment found for user. Using brand ID from email domain:', brandId);
       }
+
+      // Load approved guidelines if brand exists
+      if (brandId) {
+        const guidelinesData = await getBrandGuidelines(brandId);
+        if (guidelinesData) {
+          setGuidelines(guidelinesData);
+        }
+      }
     } catch (error) {
       console.error('Error loading user data:', error);
     } finally {
@@ -108,6 +123,25 @@ export default function DashboardPage() {
   async function handleSignOut() {
     await supabase.auth.signOut();
     window.location.href = '/login';
+  }
+
+  async function handleGuidelinesUpdate(updatedGuidelines: any) {
+    setGuidelines(updatedGuidelines);
+    
+    // Save to database
+    try {
+      const response = await fetch(`/api/brands/${brandUser?.brand_id}/guidelines/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guidelines: updatedGuidelines }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to save guidelines');
+      }
+    } catch (error) {
+      console.error('Error saving guidelines:', error);
+    }
   }
 
   if (loading) {
@@ -289,6 +323,77 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Brand Guidelines Status */}
+        {guidelines && (
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-green-500 p-2">
+                  <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Brand Guidelines Active</h3>
+                  <p className="text-sm text-gray-600">Last updated: {new Date(guidelines.updated_at).toLocaleDateString()}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBrandSettings(true)}
+                className="text-sm text-green-700 hover:text-green-800 font-medium"
+              >
+                View Details →
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+              <div className="bg-white rounded-lg p-3 border border-green-100">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Voice</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">
+                  {guidelines.voice?.personality?.length || 0} traits
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-green-100">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Colors</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">
+                  {guidelines.visual_guidelines?.colors?.primary ? '✓ Defined' : 'Not set'}
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-green-100">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Typography</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">
+                  {guidelines.visual_guidelines?.typography?.headings?.family || 'Not set'}
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-green-100">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Messaging</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">
+                  {guidelines.messaging?.pillars?.length || 0} pillars
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!guidelines && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <h3 className="text-lg font-semibold text-gray-900">No Brand Guidelines</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Upload your brand guidelines to enable AI-powered brand compliance checking.
+            </p>
+            <button
+              onClick={() => setShowBrandSettings(true)}
+              className="text-sm bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+            >
+              Upload Guidelines
+            </button>
+          </div>
+        )}
+
         {/* Quick Actions */}
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
@@ -309,16 +414,102 @@ export default function DashboardPage() {
               </svg>
               <span className="text-sm font-medium text-gray-900">Upload Document</span>
             </button>
-            <button className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-black hover:bg-gray-50 transition-colors">
-              <svg className="h-8 w-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span className="text-sm font-medium text-gray-900">Settings</span>
+            <button 
+              onClick={() => setShowBrandSettings(true)}
+              className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-black hover:bg-gray-50 transition-colors"
+            >
+              <Settings className="h-8 w-8 text-gray-600" />
+              <span className="text-sm font-medium text-gray-900">Brand Settings</span>
             </button>
           </div>
         </div>
       </main>
+
+      {/* Brand Settings Modal */}
+      {showBrandSettings && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm"
+            onClick={() => setShowBrandSettings(false)}
+          />
+          
+          {/* Modal Container */}
+          <div className="flex min-h-full items-center justify-center p-4">
+            {/* Modal */}
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Brand Configuration</h2>
+                    <p className="text-blue-100 text-sm mt-1">Manage your brand guidelines</p>
+                  </div>
+                  <button
+                    onClick={() => setShowBrandSettings(false)}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  >
+                    <X className="h-6 w-6 text-white" />
+                  </button>
+                </div>
+                
+                {/* Tabs */}
+                {guidelines && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSettingsView('settings')}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        settingsView === 'settings'
+                          ? 'bg-white text-blue-700'
+                          : 'bg-blue-500/30 text-white hover:bg-blue-500/50'
+                      }`}
+                    >
+                      View Settings
+                    </button>
+                    <button
+                      onClick={() => setSettingsView('upload')}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        settingsView === 'upload'
+                          ? 'bg-white text-blue-700'
+                          : 'bg-blue-500/30 text-white hover:bg-blue-500/50'
+                      }`}
+                    >
+                      Upload New
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              {/* Content */}
+              <div className="p-6 max-h-[70vh] overflow-y-auto bg-gray-50">
+                {settingsView === 'settings' && guidelines ? (
+                  <BrandGuidelinesSettings
+                    guidelines={guidelines}
+                    brandId={brandUser?.brand_id || 'act'}
+                    onUpdate={handleGuidelinesUpdate}
+                  />
+                ) : (
+                  <BrandGuidelinesUpload
+                    brandId={brandUser?.brand_id || 'act'}
+                    brandName={brandUser?.brand_id?.toUpperCase() || 'ACT'}
+                    existingGuidelines={guidelines ? {
+                      ...guidelines,
+                      // Temporarily exclude new fields that aren't rendered yet
+                      contentGuidelines: undefined,
+                      socialMediaGuidelines: undefined,
+                      logoAssets: undefined,
+                    } : undefined}
+                    onGuidelinesApproved={() => {
+                      setShowBrandSettings(false);
+                      loadUserData(); // Reload to fetch new guidelines
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

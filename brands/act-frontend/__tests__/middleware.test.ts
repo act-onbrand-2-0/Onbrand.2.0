@@ -87,9 +87,9 @@ describe('Middleware', () => {
     expect(NextResponse.next).toHaveBeenCalled();
   });
 
-  it('should set brand headers for subdomain', () => {
+  it('should set brand headers for subdomain', async () => {
     headersMock.set('host', 'acme.onbrand.ai');
-    const response = middleware(mockRequest);
+    const response = await middleware(mockRequest);
     
     expect(response.headers.set).toHaveBeenCalledWith('x-brand-subdomain', 'acme');
     expect(response.headers.set).toHaveBeenCalledWith('x-hostname', 'acme.onbrand.ai');

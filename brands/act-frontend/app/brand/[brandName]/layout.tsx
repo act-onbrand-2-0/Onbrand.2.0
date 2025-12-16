@@ -4,7 +4,7 @@ import { getBrandConfig, isValidBrand } from '../../../lib/brand';
 
 interface BrandLayoutProps {
   children: ReactNode;
-  params: { brandName: string };
+  params: Promise<{ brandName: string }>;
 }
 
 function BrandHeader({ brandConfig }: { brandConfig: any }) {
@@ -20,6 +20,7 @@ function BrandHeader({ brandConfig }: { brandConfig: any }) {
             <li><Link href={`/brand/${brandConfig.id}/dashboard`} className="hover:text-opacity-80">Dashboard</Link></li>
             <li><Link href={`/brand/${brandConfig.id}/content`} className="hover:text-opacity-80">Content</Link></li>
             <li><Link href={`/brand/${brandConfig.id}/analytics`} className="hover:text-opacity-80">Analytics</Link></li>
+            <li><Link href={`/brand/${brandConfig.id}/configuration`} className="hover:text-opacity-80">Settings</Link></li>
             <li><Link href="/login" className="hover:text-opacity-80">Account</Link></li>
           </ul>
         </nav>
@@ -80,7 +81,7 @@ function BrandFooter({ brandConfig }: { brandConfig: any }) {
 
 export default async function BrandLayout({ children, params }: BrandLayoutProps) {
   // Get the brand configuration from the URL parameter
-  const { brandName } = params;
+  const { brandName } = await params;
   
   // Check if this is a valid brand
   const validBrand = isValidBrand(brandName);

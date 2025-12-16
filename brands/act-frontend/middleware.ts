@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { hasAccessToBrand } from './lib/auth';
+import { createClient } from '@supabase/supabase-js';
 import { isValidBrand } from './lib/brand';
+
+// Routes that require authentication (handled client-side for now)
+// Supabase stores session in localStorage, not cookies, so middleware can't check auth
+// Auth is enforced in the page components instead
+const PROTECTED_ROUTES: string[] = [
+  // '/configuration',  // Handled client-side
+  // '/settings',
+  // '/admin',
+];
 
 export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || '';
@@ -19,10 +28,11 @@ export async function middleware(request: NextRequest) {
   console.log('Middleware - hostname:', hostname, 'subdomain:', subdomain);
   
   // Check if this is a brand-specific path
-  const brandPathMatch = url.pathname.match(/^\/brand\/([\w-]+)/);
+  const brandPathMatch = url.pathname.match(/^\/brand\/([\w-]+)(\/.*)?/);
   
   if (brandPathMatch) {
     const requestedBrandId = brandPathMatch[1];
+    const subPath = brandPathMatch[2] || '';
     
     // Ensure the brand exists
     if (!isValidBrand(requestedBrandId)) {
@@ -30,30 +40,73 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/404', request.url));
     }
     
-    // Get session and user for tenant isolation
-    const authHeader = request.headers.get('authorization');
-    let userId = null;
+    // Check if this is a protected route
+    const isProtectedRoute = PROTECTED_ROUTES.some(route => subPath.startsWith(route));
     
-    // Only check authorization for authenticated routes
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        // If we have auth token, get the user ID
-        // In a real implementation you'd validate the JWT token here
-        // For now, we'll assume the user is always allowed
-      } catch (e) {
-        console.error('Auth error:', e);
+    if (isProtectedRoute) {
+      console.log(`[Middleware] Protected route accessed: ${url.pathname}`);
+      
+      // Check for Supabase auth cookie
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (supabaseUrl && supabaseAnonKey) {
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            persistSession: false,
+          },
+        });
+        
+        // Log all cookies for debugging
+        const allCookies = request.cookies.getAll();
+        console.log(`[Middleware] All cookies:`, allCookies.map(c => c.name));
+        
+        // Get session from cookie
+        const accessToken = request.cookies.get('sb-access-token')?.value;
+        
+        // Also check for the combined auth cookie (newer Supabase format)
+        // Format: sb-<project-ref>-auth-token
+        const projectRef = new URL(supabaseUrl).hostname.split('.')[0];
+        const authCookieName = `sb-${projectRef}-auth-token`;
+        const authCookie = request.cookies.get(authCookieName)?.value;
+        
+        console.log(`[Middleware] Looking for cookie: ${authCookieName}`);
+        console.log(`[Middleware] Auth cookie found: ${!!authCookie}`);
+        console.log(`[Middleware] Access token found: ${!!accessToken}`);
+        
+        let isAuthenticated = false;
+        
+        if (authCookie) {
+          try {
+            const parsed = JSON.parse(authCookie);
+            console.log(`[Middleware] Parsed auth cookie, has access_token: ${!!parsed.access_token}`);
+            if (parsed.access_token) {
+              const { data: { user }, error } = await supabase.auth.getUser(parsed.access_token);
+              console.log(`[Middleware] User from token:`, user?.email, 'Error:', error?.message);
+              isAuthenticated = !!user;
+            }
+          } catch (e) {
+            console.error('[Middleware] Auth cookie parse error:', e);
+          }
+        } else if (accessToken) {
+          const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+          console.log(`[Middleware] User from access token:`, user?.email, 'Error:', error?.message);
+          isAuthenticated = !!user;
+        }
+        
+        console.log(`[Middleware] Is authenticated: ${isAuthenticated}`);
+        
+        if (!isAuthenticated) {
+          // Redirect to login with return URL
+          const loginUrl = new URL('/login', request.url);
+          loginUrl.searchParams.set('returnTo', url.pathname);
+          console.log(`[Middleware] Redirecting to: ${loginUrl.toString()}`);
+          return NextResponse.redirect(loginUrl);
+        }
+        
+        console.log(`[Middleware] Access granted to ${url.pathname}`);
       }
     }
-    
-    // For now, allow access in development - in production, you would check:
-    // if (userId && process.env.NODE_ENV === 'production') {
-    //   // Check if user has access to this brand
-    //   const hasAccess = await hasAccessToBrand(userId, requestedBrandId);
-    //   if (!hasAccess) {
-    //     // User doesn't have access - redirect to their default brand
-    //     return NextResponse.redirect(new URL('/unauthorized', request.url));
-    //   }
-    // }
   }
   
   // Handle parent domain (onbrand.ai)

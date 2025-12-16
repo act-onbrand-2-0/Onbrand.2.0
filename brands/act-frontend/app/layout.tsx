@@ -50,7 +50,7 @@ export default function RootLayout({
   const brandConfig = getBrandConfig();
   
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
         className={`${crimsonText.variable} ${dmSans.variable} ${robotoMono.variable} antialiased`}
         style={{

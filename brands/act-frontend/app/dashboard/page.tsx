@@ -1,13 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
 import { User, Building2, Shield, LogOut, MessageSquare } from 'lucide-react';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import Link from 'next/link';
 
 interface BrandUser {
   brand_id: string;
@@ -31,81 +27,81 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const supabase = createClient();
+    
+    async function loadUserData() {
+      try {
+        // Get current session (more reliable than getUser for OAuth)
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.user) {
+          window.location.href = '/login';
+          return;
+        }
+
+        const currentUser = session.user;
+        setUser(currentUser);
+        
+        // Get brand from email if available
+        let brandId = 'act'; // Default
+        
+        if (currentUser.email) {
+          const emailParts = currentUser.email.split('@');
+          if (emailParts.length > 1) {
+            const domain = emailParts[1];
+            const domainParts = domain.split('.');
+            if (domainParts.length > 0) {
+              brandId = domainParts[0];
+              console.log('Extracted brand ID from email:', brandId);
+            }
+          }
+        }
+
+        // Get brand user info with error handling
+        const { data: brandUserData, error: brandUserError } = await supabase
+          .from('brand_users')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .maybeSingle();
+
+        if (brandUserError) {
+          console.error('Error fetching brand user:', brandUserError);
+          return;
+        }
+
+        if (brandUserData) {
+          setBrandUser(brandUserData);
+          brandId = brandUserData.brand_id;
+
+          // Get quota info
+          const { data: quotaData, error: quotaError } = await supabase
+            .from('brand_quotas')
+            .select('*')
+            .eq('brand_id', brandUserData.brand_id)
+            .maybeSingle();
+
+          if (quotaError) {
+            console.error('Error fetching quota:', quotaError);
+          }
+
+          if (quotaData) {
+            setQuota(quotaData);
+          }
+        } else {
+          console.warn('No brand assignment found for user. Using brand ID from email domain:', brandId);
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
     loadUserData();
   }, []);
 
-  async function loadUserData() {
-    try {
-      // Get current session (more reliable than getUser for OAuth)
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.user) {
-        window.location.href = '/login';
-        return;
-      }
-
-      const user = session.user;
-      setUser(user);
-      
-      // Get brand from email if available
-      let brandId = 'act'; // Default
-      
-      if (user.email) {
-        const emailParts = user.email.split('@');
-        if (emailParts.length > 1) {
-          const domain = emailParts[1];
-          const domainParts = domain.split('.');
-          if (domainParts.length > 0) {
-            // Extract organization name from email domain (e.g., user@creativetechnologists.nl -> creativetechnologists)
-            brandId = domainParts[0];
-            console.log('Extracted brand ID from email:', brandId);
-          }
-        }
-      }
-
-      // Get brand user info with error handling
-      const { data: brandUserData, error: brandUserError } = await supabase
-        .from('brand_users')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle(); // Use maybeSingle instead of single to handle 0 or 1 results
-
-      if (brandUserError) {
-        console.error('Error fetching brand user:', brandUserError);
-        // If brand_users query fails, user might not be assigned yet
-        // Show a message or retry
-        return;
-      }
-
-      if (brandUserData) {
-        setBrandUser(brandUserData);
-        brandId = brandUserData.brand_id; // Use the brand ID from the database if available
-
-        // Get quota info
-        const { data: quotaData, error: quotaError } = await supabase
-          .from('brand_quotas')
-          .select('*')
-          .eq('brand_id', brandUserData.brand_id)
-          .maybeSingle();
-
-        if (quotaError) {
-          console.error('Error fetching quota:', quotaError);
-        }
-
-        if (quotaData) {
-          setQuota(quotaData);
-        }
-      } else {
-        console.warn('No brand assignment found for user. Using brand ID from email domain:', brandId);
-      }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleSignOut() {
+    const supabase = createClient();
     await supabase.auth.signOut();
     window.location.href = '/login';
   }
@@ -293,10 +289,13 @@ export default function DashboardPage() {
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <button className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-black hover:bg-gray-50 transition-colors">
+            <Link 
+              href="/chat"
+              className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-black hover:bg-gray-50 transition-colors"
+            >
               <MessageSquare className="h-8 w-8 text-gray-600" />
               <span className="text-sm font-medium text-gray-900">Start Chat</span>
-            </button>
+            </Link>
             <button className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-black hover:bg-gray-50 transition-colors">
               <svg className="h-8 w-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />

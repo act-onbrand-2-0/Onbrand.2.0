@@ -1,22 +1,64 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { hasAccessToBrand } from './lib/auth';
+import { updateSession } from './lib/supabase/middleware';
 import { isValidBrand } from './lib/brand';
+
+// Routes that require authentication
+const PROTECTED_ROUTES = [
+  '/chat',
+  '/dashboard',
+  '/settings',
+];
+
+// Routes that are public (no auth required)
+const PUBLIC_ROUTES = [
+  '/login',
+  '/signup',
+  '/forgot-password',
+  '/reset-password',
+  '/auth',
+  '/marketing',
+  '/api/auth',
+  '/api/chat',
+  '/brand',
+  '/_next',
+  '/favicon.ico',
+];
 
 export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || '';
   const url = request.nextUrl;
+  const pathname = url.pathname;
+  
+  // Skip static files and Next.js internals
+  if (pathname.startsWith('/_next') || pathname.includes('.')) {
+    return NextResponse.next();
+  }
   
   // Extract subdomain
-  // Examples: nike.onbrand.ai -> nike, localhost:3000 -> localhost
   let subdomain = hostname.split('.')[0];
-  
-  // Handle localhost with port
   if (subdomain.includes(':')) {
     subdomain = subdomain.split(':')[0];
   }
   
-  console.log('Middleware - hostname:', hostname, 'subdomain:', subdomain);
+  // Check if this is a protected route
+  const isProtectedRoute = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
+  const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+  
+  // For protected routes, check authentication using Supabase SSR
+  if (isProtectedRoute && !isPublicRoute) {
+    const { user, supabaseResponse } = await updateSession(request);
+    
+    if (!user) {
+      // Not authenticated - redirect to login
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    
+    // User is authenticated - continue with the updated response (includes refreshed cookies)
+    return supabaseResponse;
+  }
   
   // Check if this is a brand-specific path
   const brandPathMatch = url.pathname.match(/^\/brand\/([\w-]+)/);

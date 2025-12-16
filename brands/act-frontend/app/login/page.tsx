@@ -1,19 +1,40 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { useState, useEffect, Suspense } from 'react';
+import { createClient } from '@/lib/supabase/client';
 // Removed Github import - using Microsoft OAuth instead
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { detectBrandId, getBrandCallbackUrl } from '@/lib/brand';
 
+// Wrap the main content in Suspense because useSearchParams requires it
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginSkeleton />}>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginSkeleton() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="animate-pulse text-muted-foreground">Loading...</div>
+    </div>
+  );
+}
+
+function LoginContent() {
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [mounted, setMounted] = useState(false);
-  const [supabase, setSupabase] = useState<any>(null);
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -27,7 +48,7 @@ export default function LoginPage() {
     }
     
     try {
-      const client = createClient(supabaseUrl, supabaseAnonKey);
+      const client = createClient();
       setSupabase(client);
     } catch (err) {
       setError('Failed to initialize Supabase client. Please check your configuration.');
@@ -103,9 +124,9 @@ export default function LoginPage() {
         }
       }
       
-      // Redirect directly to the simplified dashboard URL
-      console.log(`Redirecting to simplified dashboard URL: /dashboard`);
-      window.location.href = `/dashboard`;
+      // Redirect to the original destination or dashboard
+      console.log(`Redirecting to: ${redirectTo}`);
+      window.location.href = redirectTo;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in');
       setLoading(false);

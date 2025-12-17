@@ -2,12 +2,14 @@
 
 import { ChatSidebar } from './chat-sidebar';
 import { MessageList } from './message-list';
-import { ChatInput, type ModelId } from './chat-input';
+import { ChatInput, type ModelId, type Attachment } from './chat-input';
+import { type MessageAttachment } from './chat-message';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  attachments?: MessageAttachment[];
 }
 
 interface Conversation {
@@ -34,7 +36,7 @@ interface ChatContainerProps {
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
   onArchiveConversation?: (id: string) => void;
-  onSendMessage: () => void;
+  onSendMessage: (attachments?: Attachment[]) => void;
   onStopGeneration?: () => void;
   onRegenerate?: () => void;
   onModelChange: (model: ModelId) => void;
@@ -63,6 +65,12 @@ export function ChatContainer({
   onModelChange,
   brandName,
 }: ChatContainerProps) {
+  // Debug: Check if messages have attachments
+  console.log('ChatContainer messages:', messages.map(m => ({ 
+    role: m.role, 
+    hasAttachments: !!(m.attachments?.length),
+    attachmentsCount: m.attachments?.length 
+  })));
   return (
     <div className="flex h-dvh bg-background">
       {/* Sidebar - Hidden on mobile */}

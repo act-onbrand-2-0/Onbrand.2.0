@@ -2,13 +2,14 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { ArrowDown } from 'lucide-react';
-import { ChatMessage, ThinkingMessage } from './chat-message';
+import { ChatMessage, ThinkingMessage, type MessageAttachment } from './chat-message';
 import { Greeting } from './greeting';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  attachments?: MessageAttachment[];
 }
 
 interface MessageListProps {
@@ -68,6 +69,7 @@ export function MessageList({
               key={message.id}
               role={message.role === 'system' ? 'assistant' : message.role}
               content={message.content}
+              attachments={message.attachments}
               isStreaming={isStreaming && index === messages.length - 1 && message.role === 'assistant'}
             />
           ))}

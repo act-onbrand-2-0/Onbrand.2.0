@@ -3,8 +3,28 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ChatContainer } from '@/components/chat/chat-container';
-import { type ModelId } from '@/components/chat/chat-input';
+import { type ModelId, type Attachment } from '@/components/chat/chat-input';
 import { useRouter } from 'next/navigation';
+
+// Helper to convert file to base64
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+  });
+}
+
+// Helper to read file as text
+async function fileToText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsText(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+  });
+}
 
 // Types
 interface Conversation {
@@ -63,10 +83,18 @@ export default function ChatPage() {
   }, [brandId, currentConversation, selectedModel]);
 
   // Simple message state (no AI SDK - it doesn't pass body correctly)
+  interface MessageAttachmentDisplay {
+    id: string;
+    name: string;
+    type: 'image' | 'document';
+    preview?: string;
+    mimeType: string;
+  }
   interface ChatMessage {
     id: string;
     role: 'user' | 'assistant';
     content: string;
+    attachments?: MessageAttachmentDisplay[];
   }
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -79,18 +107,87 @@ export default function ChatPage() {
   }, []);
 
   // Custom sendMessage that actually works
-  const sendMessage = useCallback(async (text: string) => {
+  const sendMessage = useCallback(async (text: string, attachments?: Attachment[]) => {
     console.log('=== SENDING MESSAGE ===');
     console.log('Using model:', selectedModel);
+    console.log('Attachments:', attachments?.length || 0);
     
-    // Add user message only
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text };
+    // Build attachment display info for UI - convert to base64 for persistence
+    const attachmentDisplayInfo: MessageAttachmentDisplay[] = [];
+    if (attachments && attachments.length > 0) {
+      for (const a of attachments) {
+        let preview = a.preview;
+        // Convert blob URL to base64 for images so it persists
+        if (a.type === 'image' && a.file) {
+          preview = await fileToBase64(a.file);
+        }
+        attachmentDisplayInfo.push({
+          id: a.id,
+          name: a.file.name,
+          type: a.type,
+          preview,
+          mimeType: a.file.type,
+        });
+      }
+    }
+    
+    // Add user message with attachments for display
+    const userMsg: ChatMessage = { 
+      id: crypto.randomUUID(), 
+      role: 'user', 
+      content: text,
+      attachments: attachmentDisplayInfo.length > 0 ? attachmentDisplayInfo : undefined,
+    };
+    console.log('userMsg with attachments:', userMsg.attachments?.length, userMsg.attachments?.map(a => ({ name: a.name, previewLength: a.preview?.length })));
     setAiMessages(prev => [...prev, userMsg]);
     setStreamingContent('');
     setIsStreaming(true);
     
     try {
       abortControllerRef.current = new AbortController();
+      
+      // Process attachments for the API
+      const processedAttachments: Array<{
+        type: 'image' | 'document';
+        name: string;
+        mimeType: string;
+        data: string;
+      }> = [];
+      
+      if (attachments && attachments.length > 0) {
+        for (const attachment of attachments) {
+          if (attachment.type === 'image') {
+            // Convert image to base64
+            const base64 = await fileToBase64(attachment.file);
+            processedAttachments.push({
+              type: 'image',
+              name: attachment.file.name,
+              mimeType: attachment.file.type,
+              data: base64,
+            });
+          } else if (attachment.type === 'document') {
+            // For text/markdown files, read as text
+            if (attachment.file.type === 'text/plain' || attachment.file.type === 'text/markdown') {
+              const textContent = await fileToText(attachment.file);
+              processedAttachments.push({
+                type: 'document',
+                name: attachment.file.name,
+                mimeType: attachment.file.type,
+                data: textContent,
+              });
+            } else {
+              // For PDFs, convert to base64 (could be processed on server)
+              const base64 = await fileToBase64(attachment.file);
+              processedAttachments.push({
+                type: 'document',
+                name: attachment.file.name,
+                mimeType: attachment.file.type,
+                data: base64,
+              });
+            }
+          }
+        }
+      }
       
       // Get current messages for API call
       const currentMessages = [...aiMessages, userMsg].map(m => ({ role: m.role, content: m.content }));
@@ -104,12 +201,26 @@ export default function ChatPage() {
           model: selectedModel,
           messages: currentMessages,
           systemPrompt: conversationRef.current?.system_prompt,
+          attachments: processedAttachments.length > 0 ? processedAttachments : undefined,
         }),
         signal: abortControllerRef.current.signal,
       });
       
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        // Try to parse error message from response
+        let errorMessage = `API error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          } else if (errorData.details) {
+            errorMessage = errorData.details;
+          }
+        } catch {
+          // Response wasn't JSON, use status text
+          errorMessage = `Error: ${response.statusText || response.status}`;
+        }
+        throw new Error(errorMessage);
       }
       
       if (!response.body) {
@@ -147,7 +258,16 @@ export default function ChatPage() {
         }
       }
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') console.error('Chat error:', err);
+      if ((err as Error).name !== 'AbortError') {
+        console.error('Chat error:', err);
+        // Show error as assistant message
+        const errorMessage = (err as Error).message || 'An error occurred while processing your request.';
+        setAiMessages(prev => [...prev, { 
+          id: crypto.randomUUID(), 
+          role: 'assistant', 
+          content: `⚠️ **Error:** ${errorMessage}` 
+        }]);
+      }
     } finally {
       setIsStreaming(false);
       setStreamingContent('');
@@ -254,16 +374,25 @@ export default function ChatPage() {
       
       if (data) {
         setDbMessages(data);
-        // Sync with AI messages (AI SDK 5 format)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setAiMessages(
-          data.map((m: Message) => ({
+        // Sync with AI messages - preserve any attachments from current session
+        setAiMessages(prev => {
+          // Create a map of existing attachments by message content (since DB IDs differ from client IDs)
+          const attachmentMap = new Map<string, MessageAttachmentDisplay[]>();
+          prev.forEach(m => {
+            if (m.attachments && m.attachments.length > 0) {
+              attachmentMap.set(m.content, m.attachments);
+            }
+          });
+          
+          // Map DB messages and restore any attachments
+          return data.map((m: Message) => ({
             id: m.id,
             role: m.role as 'user' | 'assistant',
             content: m.content,
-            parts: [{ type: 'text' as const, text: m.content }],
-          })) as any
-        );
+            // Try to restore attachments by matching content
+            attachments: attachmentMap.get(m.content),
+          }));
+        });
       }
     }
 
@@ -365,14 +494,18 @@ export default function ChatPage() {
   }, [currentConversation, setAiMessages]);
 
   // Send message
-  const handleSendMessage = useCallback(async () => {
-    if (!input.trim() || !brandId || !userId) return;
+  const handleSendMessage = useCallback(async (attachments?: Attachment[]) => {
+    // Allow sending if there's input text OR attachments
+    const hasContent = input.trim() || (attachments && attachments.length > 0);
+    if (!hasContent || !brandId || !userId) return;
 
     let conversation = currentConversation;
 
     // Create conversation if none exists
     if (!conversation) {
-      const title = input.slice(0, 50) + (input.length > 50 ? '...' : '');
+      const titleBase = input.trim() || 
+        (attachments?.[0]?.file.name ? `Attached: ${attachments[0].file.name}` : 'New Chat');
+      const title = titleBase.slice(0, 50) + (titleBase.length > 50 ? '...' : '');
       
       const { data, error } = await supabase
         .from('conversations')
@@ -397,19 +530,26 @@ export default function ChatPage() {
 
     if (!conversation) return;
 
+    // Build content for DB (include attachment names if any)
+    let dbContent = input;
+    if (attachments && attachments.length > 0) {
+      const attachmentNames = attachments.map(a => a.file.name).join(', ');
+      dbContent = input.trim() ? input : `[Attached: ${attachmentNames}]`;
+    }
+
     // Save user message to database
     await saveMessageToDb({
       conversation_id: conversation.id,
       role: 'user',
-      content: input,
+      content: dbContent,
     });
 
     // Send to AI (manual fetch with model)
     const messageText = input;
     setInput('');
     
-    sendMessage(messageText);
-  }, [input, brandId, userId, currentConversation, sendMessage]);
+    sendMessage(messageText, attachments);
+  }, [input, brandId, userId, currentConversation, sendMessage, selectedModel, supabase]);
 
   // Regenerate last response
   const handleRegenerate = useCallback(async () => {
@@ -422,11 +562,12 @@ export default function ChatPage() {
     }
   }, [dbMessages, currentConversation]);
 
-  // Messages are already in the correct format
+  // Messages are already in the correct format - include attachments for display
   const displayMessages = aiMessages.map(m => ({
     id: m.id,
     role: m.role as 'user' | 'assistant' | 'system',
     content: m.content,
+    attachments: m.attachments,
   }));
 
   if (!userId || !brandId) {

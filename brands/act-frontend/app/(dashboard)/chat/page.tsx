@@ -27,15 +27,43 @@ async function fileToText(file: File): Promise<string> {
 }
 
 // Types
+interface Project {
+  id: string;
+  brand_id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  icon: string;
+  is_default: boolean;
+  archived: boolean;
+}
+
+interface ProjectFile {
+  id: string;
+  project_id: string;
+  brand_id: string;
+  user_id: string;
+  name: string;
+  file_path: string;
+  file_type: string;
+  file_size: number;
+  status: 'pending' | 'processing' | 'ready' | 'error';
+  extracted_text: string | null;
+  created_at: string;
+}
+
 interface Conversation {
   id: string;
   brand_id: string;
   user_id: string;
+  project_id: string | null;
   title: string;
   model: string;
   system_prompt: string | null;
   last_message_at: string;
   created_at: string;
+  last_message_preview?: string;
   visibility?: 'private' | 'shared' | null;
 }
 
@@ -61,6 +89,11 @@ export default function ChatPage() {
   const [userEmail, setUserEmail] = useState<string>('');
   const [userAvatar, setUserAvatar] = useState<string>('');
   
+  // Project state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  
   // Conversation state
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
@@ -77,12 +110,14 @@ export default function ChatPage() {
   const brandIdRef = useRef(brandId);
   const conversationRef = useRef(currentConversation);
   const selectedModelRef = useRef(selectedModel);
+  const projectIdRef = useRef(currentProjectId);
   
   useEffect(() => {
     brandIdRef.current = brandId;
     conversationRef.current = currentConversation;
     selectedModelRef.current = selectedModel;
-  }, [brandId, currentConversation, selectedModel]);
+    projectIdRef.current = currentProjectId;
+  }, [brandId, currentConversation, selectedModel, currentProjectId]);
 
   // Simple message state (no AI SDK - it doesn't pass body correctly)
   interface MessageAttachmentDisplay {
@@ -194,17 +229,25 @@ export default function ChatPage() {
       // Get current messages for API call
       const currentMessages = [...aiMessages, userMsg].map(m => ({ role: m.role, content: m.content }));
       
+      const apiBody = {
+        brandId: brandIdRef.current,
+        conversationId: conversationRef.current?.id,
+        projectId: projectIdRef.current || conversationRef.current?.project_id,
+        model: selectedModel,
+        messages: currentMessages,
+        systemPrompt: conversationRef.current?.system_prompt,
+        attachments: processedAttachments.length > 0 ? processedAttachments : undefined,
+      };
+      
+      console.log('=== CHAT API REQUEST ===');
+      console.log('projectIdRef.current:', projectIdRef.current);
+      console.log('conversationRef.current?.project_id:', conversationRef.current?.project_id);
+      console.log('Final projectId being sent:', apiBody.projectId);
+      
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brandId: brandIdRef.current,
-          conversationId: conversationRef.current?.id,
-          model: selectedModel,
-          messages: currentMessages,
-          systemPrompt: conversationRef.current?.system_prompt,
-          attachments: processedAttachments.length > 0 ? processedAttachments : undefined,
-        }),
+        body: JSON.stringify(apiBody),
         signal: abortControllerRef.current.signal,
       });
       
@@ -307,6 +350,53 @@ export default function ChatPage() {
     fetchUserInfo();
   }, [router]);
 
+  // Fetch projects when brand is set
+  useEffect(() => {
+    if (!brandId || !userId) return;
+
+    async function fetchProjects() {
+      setIsLoadingProjects(true);
+      
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('brand_id', brandId)
+        .eq('user_id', userId)
+        .eq('archived', false)
+        .order('is_default', { ascending: false })
+        .order('name', { ascending: true });
+
+      if (!error && data) {
+        setProjects(data);
+      }
+      
+      setIsLoadingProjects(false);
+    }
+
+    fetchProjects();
+
+    // Subscribe to realtime updates for projects
+    const channel = supabase
+      .channel(`projects:${brandId}:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'projects',
+          filter: `brand_id=eq.${brandId}`,
+        },
+        () => {
+          fetchProjects();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [brandId, userId, supabase]);
+
   // Fetch conversations when brand is set
   useEffect(() => {
     if (!brandId || !userId) return;
@@ -351,7 +441,7 @@ export default function ChatPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [brandId, userId]);
+  }, [brandId, userId, supabase]);
 
   // Fetch messages when conversation changes
   useEffect(() => {
@@ -432,12 +522,16 @@ export default function ChatPage() {
   };
 
   // Create new conversation - clears current chat and shows empty state
-  const handleNewChat = useCallback(() => {
-    console.log('New Chat clicked - clearing state');
+  const handleNewChat = useCallback((projectId?: string) => {
+    console.log('New Chat clicked - clearing state, projectId:', projectId);
     setCurrentConversation(null);
     setDbMessages([]);
     setAiMessages([]);
     setInput(''); // Clear input field
+    // If projectId provided, set it as current project
+    if (projectId) {
+      setCurrentProjectId(projectId);
+    }
   }, [setAiMessages, setInput]);
 
   // Select conversation
@@ -537,6 +631,262 @@ export default function ChatPage() {
     }
   }, [currentConversation, supabase]);
 
+  // Project handlers
+  const handleSelectProject = useCallback((projectId: string | null) => {
+    setCurrentProjectId(projectId);
+    // Clear current conversation to show project view
+    if (projectId) {
+      setCurrentConversation(null);
+      setDbMessages([]);
+      setAiMessages([]);
+    }
+  }, [setAiMessages]);
+
+  const handleCreateProject = useCallback(async (name: string, color?: string): Promise<string | undefined> => {
+    if (!brandId || !userId) return undefined;
+    
+    const { data, error } = await supabase
+      .from('projects')
+      .insert({
+        brand_id: brandId,
+        user_id: userId,
+        name,
+        color: color || '#6366f1',
+        icon: 'folder',
+        is_default: false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to create project:', error.message);
+      alert(`Failed to create project: ${error.message}`);
+      return undefined;
+    }
+
+    if (data) {
+      setProjects((prev) => [...prev, data]);
+      setCurrentProjectId(data.id);
+      return data.id;
+    }
+    return undefined;
+  }, [brandId, userId, supabase]);
+
+  const handleDeleteProject = useCallback(async (projectId: string) => {
+    // Prevent deleting default project
+    const project = projects.find((p) => p.id === projectId);
+    if (project?.is_default) {
+      alert('Cannot delete the default project');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectId);
+
+    if (error) {
+      console.error('Failed to delete project:', error.message);
+      alert(`Failed to delete project: ${error.message}`);
+      return;
+    }
+
+    setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    if (currentProjectId === projectId) {
+      setCurrentProjectId(null);
+    }
+  }, [projects, currentProjectId, supabase]);
+
+  const handleRenameProject = useCallback(async (projectId: string, name: string) => {
+    const { error } = await supabase
+      .from('projects')
+      .update({ name })
+      .eq('id', projectId);
+
+    if (error) {
+      console.error('Failed to rename project:', error.message);
+      alert(`Failed to rename project: ${error.message}`);
+      return;
+    }
+
+    setProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, name } : p))
+    );
+  }, [supabase]);
+
+  // Project files state
+  const [projectFiles, setProjectFiles] = useState<Record<string, ProjectFile[]>>({});
+
+  // Fetch project files
+  useEffect(() => {
+    if (!brandId || !userId || projects.length === 0) return;
+
+    async function fetchProjectFiles() {
+      const projectIds = projects.map((p) => p.id);
+      const { data, error } = await supabase
+        .from('project_files')
+        .select('*')
+        .in('project_id', projectIds)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        // Group files by project
+        const grouped = data.reduce((acc, file) => {
+          if (!acc[file.project_id]) {
+            acc[file.project_id] = [];
+          }
+          acc[file.project_id].push(file);
+          return acc;
+        }, {} as Record<string, ProjectFile[]>);
+        setProjectFiles(grouped);
+      }
+    }
+
+    fetchProjectFiles();
+  }, [brandId, userId, projects, supabase]);
+  
+  // Debug: Log all project files mapping
+  useEffect(() => {
+    console.log('=== PROJECT FILES STATE ===');
+    console.log('Projects:', projects.map(p => ({ id: p.id, name: p.name })));
+    console.log('Project Files mapping:', Object.entries(projectFiles).map(([pid, files]) => ({
+      projectId: pid,
+      projectName: projects.find(p => p.id === pid)?.name || 'Unknown',
+      files: files.map(f => ({ id: f.id, name: f.name, status: f.status }))
+    })));
+    console.log('Current Project ID:', currentProjectId);
+  }, [projects, projectFiles, currentProjectId]);
+
+  // File upload handler
+  const handleUploadFile = useCallback(async (projectId: string, file: File) => {
+    if (!brandId || !userId) return;
+
+    // Upload to storage
+    const filePath = `${projectId}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from('project-files')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error('Failed to upload file:', uploadError.message);
+      alert(`Failed to upload file: ${uploadError.message}`);
+      return;
+    }
+
+    // Create file record
+    const { data, error } = await supabase
+      .from('project_files')
+      .insert({
+        project_id: projectId,
+        brand_id: brandId,
+        user_id: userId,
+        name: file.name,
+        file_path: filePath,
+        file_type: file.type,
+        file_size: file.size,
+        status: 'pending',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to create file record:', error.message);
+      alert(`Failed to create file record: ${error.message}`);
+      return;
+    }
+
+    if (data) {
+      console.log('=== FILE UPLOAD SUCCESS ===');
+      console.log('File uploaded to project_id:', projectId);
+      console.log('File record created:', { id: data.id, name: data.name, project_id: data.project_id });
+      
+      setProjectFiles((prev) => ({
+        ...prev,
+        [projectId]: [data, ...(prev[projectId] || [])],
+      }));
+
+      // Trigger file processing in the background
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      console.log('=== FILE PROCESSING DEBUG ===');
+      console.log('Triggering Edge Function for file:', data.id);
+      console.log('Supabase URL:', supabaseUrl);
+      
+      const session = await supabase.auth.getSession();
+      console.log('Has auth session:', !!session.data.session);
+      
+      fetch(`${supabaseUrl}/functions/v1/process-project-file`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+        body: JSON.stringify({ file_id: data.id }),
+      }).then(async (res) => {
+        console.log('Edge Function response status:', res.status);
+        const result = await res.json();
+        console.log('Edge Function result:', result);
+        
+        if (res.ok && result.success) {
+          // Update local state when processing completes
+          setProjectFiles((prev) => ({
+            ...prev,
+            [projectId]: (prev[projectId] || []).map((f) =>
+              f.id === data.id ? { ...f, status: 'ready' as const } : f
+            ),
+          }));
+          console.log('File status updated to ready');
+        } else {
+          console.error('Edge Function failed:', result);
+        }
+      }).catch((err) => {
+        console.error('Failed to process file:', err);
+      });
+    }
+  }, [brandId, userId, supabase]);
+
+  // File delete handler
+  const handleDeleteFile = useCallback(async (fileId: string) => {
+    // Find the file to get its path
+    let fileToDelete: ProjectFile | undefined;
+    let projectId: string | undefined;
+    for (const [pid, files] of Object.entries(projectFiles)) {
+      const file = files.find((f) => f.id === fileId);
+      if (file) {
+        fileToDelete = file;
+        projectId = pid;
+        break;
+      }
+    }
+
+    if (!fileToDelete || !projectId) return;
+
+    // Delete from storage
+    const { error: storageError } = await supabase.storage
+      .from('project-files')
+      .remove([fileToDelete.file_path]);
+
+    if (storageError) {
+      console.error('Failed to delete file from storage:', storageError.message);
+    }
+
+    // Delete record
+    const { error } = await supabase
+      .from('project_files')
+      .delete()
+      .eq('id', fileId);
+
+    if (error) {
+      console.error('Failed to delete file record:', error.message);
+      alert(`Failed to delete file: ${error.message}`);
+      return;
+    }
+
+    setProjectFiles((prev) => ({
+      ...prev,
+      [projectId!]: (prev[projectId!] || []).filter((f) => f.id !== fileId),
+    }));
+  }, [projectFiles, supabase]);
+
   // Send message
   const handleSendMessage = useCallback(async (attachments?: Attachment[]) => {
     // Allow sending if there's input text OR attachments
@@ -568,6 +918,7 @@ export default function ChatPage() {
         .insert({
           brand_id: brandId,
           user_id: userId,
+          project_id: currentProjectId,
           title,
           model: selectedModel,
         })
@@ -612,7 +963,7 @@ export default function ChatPage() {
     setInput('');
     
     sendMessage(messageText, attachments);
-  }, [input, brandId, userId, currentConversation, sendMessage, selectedModel, supabase]);
+  }, [input, brandId, userId, currentConversation, currentProjectId, sendMessage, selectedModel, supabase]);
 
   // Regenerate last response
   const handleRegenerate = useCallback(async () => {
@@ -646,11 +997,14 @@ export default function ChatPage() {
       conversations={conversations}
       currentConversation={currentConversation}
       messages={displayMessages}
-      isLoading={isLoadingConversations}
+      isLoading={isLoadingConversations || isLoadingProjects}
       isStreaming={isStreaming}
       streamingContent={streamingContent}
       input={input}
       selectedModel={selectedModel}
+      projects={projects}
+      projectFiles={projectFiles}
+      currentProjectId={currentProjectId}
       setInput={setInput}
       onNewChat={handleNewChat}
       onSelectConversation={handleSelectConversation}
@@ -661,6 +1015,12 @@ export default function ChatPage() {
       onStopGeneration={stop}
       onRegenerate={handleRegenerate}
       onModelChange={setSelectedModel}
+      onSelectProject={handleSelectProject}
+      onCreateProject={handleCreateProject}
+      onDeleteProject={handleDeleteProject}
+      onRenameProject={handleRenameProject}
+      onUploadFile={handleUploadFile}
+      onDeleteFile={handleDeleteFile}
       brandName={brandName}
       currentUserId={userId}
       userName={userName}

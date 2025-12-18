@@ -74,6 +74,7 @@ export function useConversations({
     const newConversation = {
       brand_id: brandId,
       user_id: userId,
+      project_id: input.project_id || null,
       title: input.title,
       model: input.model || 'gpt-4' as ChatModel,
       system_prompt: input.system_prompt || null,

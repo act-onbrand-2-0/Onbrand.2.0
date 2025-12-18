@@ -5,6 +5,7 @@ export * from './types';
 export { useChat } from './hooks/use-chat';
 export { useConversations } from './hooks/use-conversations';
 export { useMessages } from './hooks/use-messages';
+export { useProjects, PROJECT_COLORS, PROJECT_ICONS } from './hooks/use-projects';
 
 // Context
 export { ChatProvider, useChatContext } from './context/chat-provider';

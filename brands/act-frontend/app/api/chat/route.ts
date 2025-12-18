@@ -3,6 +3,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { google } from "@ai-sdk/google";
 import { type NextRequest } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 // Tell Next.js this is a dynamic API route
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,13 @@ export const dynamicParams = true;
 
 // Use edge runtime for streaming
 export const runtime = "edge";
+
+// Create Supabase client for fetching project files (using service role to bypass RLS)
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  return createClient(url, serviceKey);
+}
 
 // Available models with their display names and provider info
 const MODELS = {
@@ -84,8 +92,9 @@ export async function POST(req: NextRequest) {
     const { 
       conversationId,
       brandId, 
-      messages = [],
+      projectId,
       model = 'claude-sonnet-4-5',
+      messages = [],
       systemPrompt,
       attachments = [] as ProcessedAttachment[]
     } = body;
@@ -112,15 +121,77 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Fetch project files context if projectId is provided
+    let projectContext = '';
+    console.log('=== PROJECT FILES DEBUG ===');
+    console.log('projectId received:', projectId);
+    
+    if (projectId) {
+      try {
+        const supabase = getSupabaseClient();
+        
+        // First, check ALL files for this project (for debugging)
+        const { data: allFiles } = await supabase
+          .from('project_files')
+          .select('id, name, status, file_type, extracted_text')
+          .eq('project_id', projectId);
+        
+        console.log('ALL files for project:', allFiles?.map(f => ({ 
+          id: f.id,
+          name: f.name, 
+          status: f.status, 
+          hasExtractedText: !!f.extracted_text,
+          textLength: f.extracted_text?.length || 0
+        })));
+        
+        // Now fetch only ready files with extracted text
+        const { data: projectFiles, error: filesError } = await supabase
+          .from('project_files')
+          .select('name, extracted_text, file_type, status')
+          .eq('project_id', projectId)
+          .eq('status', 'ready')
+          .not('extracted_text', 'is', null);
+
+        console.log('Ready files with text:', { 
+          count: projectFiles?.length || 0, 
+          files: projectFiles?.map(f => ({ name: f.name, status: f.status, hasText: !!f.extracted_text, textLength: f.extracted_text?.length })),
+          error: filesError 
+        });
+
+        if (projectFiles && projectFiles.length > 0) {
+          projectContext = '\n\n=== PROJECT CONTEXT FILES ===\n';
+          projectContext += 'The following files have been uploaded to this project for context:\n\n';
+          
+          for (const file of projectFiles) {
+            if (file.extracted_text) {
+              // Limit each file's content to prevent token overflow
+              const maxFileLength = 10000;
+              const content = file.extracted_text.length > maxFileLength
+                ? file.extracted_text.substring(0, maxFileLength) + '\n[Content truncated...]'
+                : file.extracted_text;
+              
+              projectContext += `--- ${file.name} (${file.file_type}) ---\n`;
+              projectContext += content;
+              projectContext += '\n--- End of file ---\n\n';
+            }
+          }
+          projectContext += '=== END PROJECT CONTEXT ===\n\n';
+          projectContext += 'Use the above project files as context when answering questions. Reference specific files when relevant.\n';
+        }
+      } catch (error) {
+        console.error('Failed to fetch project files:', error);
+      }
+    }
+
     // Build the system prompt with brand context
     const modelConfig = MODELS[model as ModelKey] || MODELS['claude-4.5'];
     const defaultSystemPrompt = `You are ${modelConfig.name}, a helpful AI assistant for brand management.
 You are assisting with brand: ${brandId}
 When asked what model you are, always say you are ${modelConfig.name} from ${modelConfig.provider}.
 Always provide helpful, accurate, and brand-appropriate responses.
-Be concise but thorough. Use markdown formatting when appropriate.`;
+Be concise but thorough. Use markdown formatting when appropriate.${projectContext}`;
 
-    const finalSystemPrompt = systemPrompt || defaultSystemPrompt;
+    const finalSystemPrompt = systemPrompt ? `${systemPrompt}${projectContext}` : defaultSystemPrompt;
 
     // Get the AI model based on the model key
     console.log('=== API MODEL DEBUG ===');

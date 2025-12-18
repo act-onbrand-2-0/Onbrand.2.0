@@ -2,10 +2,41 @@
  * Chat types with brand isolation support
  */
 
+// Project types for organizing conversations
+export interface Project {
+  id: string;
+  brand_id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  icon: string;
+  is_default: boolean;
+  archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateProjectInput {
+  name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+}
+
+export interface UpdateProjectInput {
+  name?: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  archived?: boolean;
+}
+
 export interface Conversation {
   id: string;
   brand_id: string;
   user_id: string;
+  project_id: string | null;
   title: string;
   model: ChatModel;
   system_prompt: string | null;
@@ -110,6 +141,7 @@ export interface CreateConversationInput {
   model?: ChatModel;
   system_prompt?: string;
   settings?: Partial<ChatSettings>;
+  project_id?: string;
 }
 
 // Send message input

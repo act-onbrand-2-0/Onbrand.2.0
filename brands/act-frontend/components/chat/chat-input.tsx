@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback, useEffect, KeyboardEvent, useState, ChangeEvent } from 'react';
+import { useRef, useCallback, useEffect, KeyboardEvent, useState, ChangeEvent, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +35,339 @@ const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'text/plain', 'text/markdown'
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB (Claude's limit)
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10MB for documents
 
+// Predictive prompt suggestions - context-aware completions (300+ triggers)
+const PROMPT_SUGGESTIONS = [
+  // === ANALYSIS & UNDERSTANDING ===
+  { trigger: 'help me', completion: 'understand this concept better' },
+  { trigger: 'help me with', completion: 'creating a strategy for' },
+  { trigger: 'help me figure out', completion: 'the best way to' },
+  { trigger: 'help me understand', completion: 'how this works' },
+  { trigger: 'help me write', completion: 'a professional message about' },
+  { trigger: 'help me create', completion: 'a plan for' },
+  { trigger: 'can you', completion: 'explain how this works' },
+  { trigger: 'can you help', completion: 'me understand' },
+  { trigger: 'can you show', completion: 'me an example of' },
+  { trigger: 'can you explain', completion: 'the difference between' },
+  { trigger: 'can you tell me', completion: 'about' },
+  { trigger: 'can you describe', completion: 'how this works' },
+  { trigger: 'can you give', completion: 'me a rundown on' },
+  { trigger: 'can you break down', completion: 'this into simpler terms' },
+  { trigger: 'can you compare', completion: 'the pros and cons of' },
+  { trigger: 'can you discuss', completion: 'the benefits of' },
+  { trigger: 'can you clear up', completion: 'the difference between' },
+  { trigger: 'can you talk about', completion: 'the various ways to' },
+  { trigger: 'what is', completion: 'the best approach for' },
+  { trigger: 'what is the', completion: 'difference between' },
+  { trigger: 'what are', completion: 'the best practices for' },
+  { trigger: 'what are the', completion: 'key considerations for' },
+  { trigger: 'what are some', completion: 'tips for' },
+  { trigger: 'what would', completion: 'you recommend for' },
+  { trigger: 'what should', completion: 'I consider when' },
+  { trigger: 'what does', completion: 'this mean' },
+  { trigger: "what's the", completion: 'best way to' },
+  { trigger: "what's a good", completion: 'example of' },
+  { trigger: "what's the deal with", completion: 'this approach' },
+  { trigger: "what's the difference", completion: 'between' },
+  { trigger: "what's the appeal of", completion: 'using' },
+  { trigger: 'how do', completion: 'I implement this feature' },
+  { trigger: 'how do I', completion: 'get started with' },
+  { trigger: 'how can', completion: 'I improve this' },
+  { trigger: 'how can I', completion: 'make this better' },
+  { trigger: 'how would', completion: 'you approach this problem' },
+  { trigger: 'how should', completion: 'I structure this' },
+  { trigger: 'how does', completion: 'this work' },
+  { trigger: 'how to', completion: 'create a successful' },
+  { trigger: 'explain', completion: 'in simple terms' },
+  { trigger: 'explain how', completion: 'this works step by step' },
+  { trigger: 'explain the', completion: 'difference between' },
+  { trigger: 'explain why', completion: 'this is important' },
+  { trigger: 'why does', completion: 'this happen' },
+  { trigger: 'why is', completion: 'this important' },
+  { trigger: 'why would', completion: 'I use this approach' },
+  { trigger: 'why do people', completion: 'use this' },
+  { trigger: 'when should', completion: 'I use this' },
+  { trigger: 'where can', completion: 'I find more information about' },
+  { trigger: 'which is', completion: 'better for' },
+  { trigger: 'which one', completion: 'should I choose' },
+  
+  // === ROLE PLAYING & PERSONAS ===
+  { trigger: 'act like', completion: 'an expert in' },
+  { trigger: 'act as', completion: 'a professional' },
+  { trigger: 'act like an', completion: 'experienced consultant for' },
+  { trigger: 'you are a', completion: 'helpful assistant that' },
+  { trigger: 'you are an', completion: 'expert in' },
+  { trigger: 'pretend you are', completion: 'a specialist in' },
+  { trigger: 'imagine you are', completion: 'advising me on' },
+  { trigger: 'as an expert', completion: 'in this field' },
+  { trigger: 'from the perspective', completion: 'of a' },
+  
+  // === CONTENT CREATION ===
+  { trigger: 'write', completion: 'a professional email about' },
+  { trigger: 'write a', completion: 'detailed summary of' },
+  { trigger: 'write an', completion: 'engaging introduction for' },
+  { trigger: 'write me', completion: 'a compelling description of' },
+  { trigger: 'write a blog', completion: 'post about' },
+  { trigger: 'write a sales', completion: 'letter about' },
+  { trigger: 'write a series', completion: 'of emails to' },
+  { trigger: 'write the code', completion: 'for a' },
+  { trigger: 'create', completion: 'a comprehensive guide for' },
+  { trigger: 'create a', completion: 'step-by-step tutorial for' },
+  { trigger: 'create an', completion: 'action plan for' },
+  { trigger: 'create a list', completion: 'of' },
+  { trigger: 'generate', completion: 'ideas for' },
+  { trigger: 'generate a', completion: 'list of options for' },
+  { trigger: 'generate some', completion: 'creative suggestions for' },
+  { trigger: 'draft', completion: 'a professional message about' },
+  { trigger: 'draft a', completion: 'proposal for' },
+  { trigger: 'draft an', completion: 'outline for' },
+  { trigger: 'compose', completion: 'an engaging message about' },
+  { trigger: 'compose a', completion: 'response to' },
+  { trigger: 'produce', completion: 'a detailed plan for' },
+  { trigger: 'produce a', completion: 'script for' },
+  { trigger: 'make', completion: 'this more concise' },
+  { trigger: 'make a', completion: 'list of' },
+  { trigger: 'make it', completion: 'sound more professional' },
+  { trigger: 'make an outline', completion: 'for a blog post about' },
+  { trigger: 'rewrite', completion: 'this in a more engaging way' },
+  { trigger: 'rewrite this', completion: 'to be clearer' },
+  { trigger: 'rephrase', completion: 'this to sound better' },
+  { trigger: 'edit', completion: 'this for clarity and tone' },
+  { trigger: 'edit this', completion: 'to be more concise' },
+  { trigger: 'proofread', completion: 'this and fix any errors' },
+  { trigger: 'translate', completion: 'this into' },
+  { trigger: 'translate this', completion: 'to Spanish' },
+  { trigger: 'craft', completion: 'an attention-grabbing' },
+  { trigger: 'craft a', completion: 'compelling headline for' },
+  { trigger: 'construct', completion: 'a persuasive argument for' },
+  { trigger: 'construct a', completion: 'detailed response to' },
+  
+  // === COPYWRITING & MARKETING ===
+  { trigger: 'come up with', completion: 'catchy headlines for' },
+  { trigger: 'come up', completion: 'with ideas for' },
+  { trigger: 'give me a CTA', completion: 'that creates urgency' },
+  { trigger: 'give me a script', completion: 'for a 30-second video about' },
+  { trigger: 'use the', completion: 'PAS marketing formula for' },
+  { trigger: 'write 10', completion: 'creative taglines for' },
+  { trigger: 'create 5', completion: 'catchy headlines for' },
+  { trigger: 'brainstorm 10', completion: 'ideas for' },
+  
+  // === COMPARISON & ANALYSIS ===
+  { trigger: 'compare', completion: 'the pros and cons of' },
+  { trigger: 'compare and', completion: 'contrast these options' },
+  { trigger: 'analyze', completion: 'the key aspects of' },
+  { trigger: 'analyze this', completion: 'and provide insights' },
+  { trigger: 'summarize', completion: 'the main points of' },
+  { trigger: 'summarize this', completion: 'in bullet points' },
+  { trigger: 'review', completion: 'and provide feedback on' },
+  { trigger: 'review this', completion: 'for potential improvements' },
+  { trigger: 'evaluate', completion: 'the effectiveness of' },
+  { trigger: 'evaluate this', completion: 'approach' },
+  { trigger: 'assess', completion: 'the risks and benefits of' },
+  { trigger: 'break down', completion: 'this into smaller parts' },
+  { trigger: 'break this', completion: 'down step by step' },
+  { trigger: 'critique', completion: 'this and suggest improvements' },
+  { trigger: 'present the', completion: 'information in a table' },
+  { trigger: 'present this', completion: 'data visually' },
+  
+  // === PROBLEM SOLVING ===
+  { trigger: 'fix', completion: 'the issue with' },
+  { trigger: 'fix this', completion: 'error in my code' },
+  { trigger: 'debug', completion: 'this problem' },
+  { trigger: 'debug this', completion: 'and explain what went wrong' },
+  { trigger: 'solve', completion: 'this challenge' },
+  { trigger: 'solve this', completion: 'problem for me' },
+  { trigger: 'improve', completion: 'the performance of' },
+  { trigger: 'improve this', completion: 'to make it better' },
+  { trigger: 'optimize', completion: 'this for better results' },
+  { trigger: 'optimize this', completion: 'code for performance' },
+  { trigger: 'troubleshoot', completion: 'this issue' },
+  { trigger: 'troubleshoot why', completion: 'this is not working' },
+  { trigger: 'refactor', completion: 'this code to be cleaner' },
+  { trigger: 'refactor this', completion: 'for better maintainability' },
+  { trigger: 'simplify', completion: 'this explanation' },
+  { trigger: 'simplify this', completion: 'to make it easier to understand' },
+  
+  // === BRAND & MARKETING ===
+  { trigger: 'suggest', completion: 'ways to enhance our brand' },
+  { trigger: 'suggest some', completion: 'improvements for' },
+  { trigger: 'brainstorm', completion: 'creative ideas for' },
+  { trigger: 'brainstorm some', completion: 'marketing strategies for' },
+  { trigger: 'design', completion: 'a strategy for' },
+  { trigger: 'design a', completion: 'campaign around' },
+  { trigger: 'plan', completion: 'the next steps for' },
+  { trigger: 'plan a', completion: 'roadmap for' },
+  { trigger: 'develop', completion: 'a content strategy for' },
+  { trigger: 'develop a', completion: 'marketing plan for' },
+  { trigger: 'outline', completion: 'a strategy for' },
+  { trigger: 'outline the', completion: 'key points of' },
+  { trigger: 'pitch', completion: 'this idea in a compelling way' },
+  { trigger: 'position', completion: 'our brand as' },
+  { trigger: 'differentiate', completion: 'our offering from competitors' },
+  { trigger: 'the impact of', completion: 'this on our brand' },
+  { trigger: 'the benefits of', completion: 'content marketing for' },
+  { trigger: 'the importance of', completion: 'brand storytelling in' },
+  { trigger: 'the role of', completion: 'customer experience in' },
+  
+  // === RESEARCH & LEARNING ===
+  { trigger: 'research', completion: 'the latest trends in' },
+  { trigger: 'research about', completion: 'best practices for' },
+  { trigger: 'learn', completion: 'more about' },
+  { trigger: 'learn about', completion: 'the fundamentals of' },
+  { trigger: 'teach me', completion: 'how to' },
+  { trigger: 'teach me about', completion: 'the basics of' },
+  { trigger: 'walk me', completion: 'through the process of' },
+  { trigger: 'walk me through', completion: 'step by step' },
+  { trigger: 'guide me', completion: 'through setting up' },
+  { trigger: 'guide me on', completion: 'how to approach' },
+  { trigger: 'describe', completion: 'how this works' },
+  { trigger: 'describe the', completion: 'process for' },
+  { trigger: 'define', completion: 'this term' },
+  { trigger: 'define the', completion: 'key concepts of' },
+  
+  // === QUICK ACTIONS ===
+  { trigger: 'tell me', completion: 'more about' },
+  { trigger: 'tell me about', completion: 'the best way to' },
+  { trigger: 'tell a personal', completion: 'story about' },
+  { trigger: 'show me', completion: 'an example of' },
+  { trigger: 'show me how', completion: 'to do this' },
+  { trigger: 'give me', completion: 'a detailed breakdown of' },
+  { trigger: 'give me a', completion: 'quick summary of' },
+  { trigger: 'give me some', completion: 'examples of' },
+  { trigger: 'give me step-by-step', completion: 'instructions to' },
+  { trigger: 'list', completion: 'the top recommendations for' },
+  { trigger: 'list all', completion: 'the options for' },
+  { trigger: 'list the', completion: 'steps to' },
+  { trigger: 'list the most', completion: 'frequently asked questions about' },
+  { trigger: 'find', completion: 'the best solution for' },
+  { trigger: 'find me', completion: 'resources about' },
+  { trigger: 'get', completion: 'me started with' },
+  { trigger: 'get me', completion: 'up to speed on' },
+  { trigger: 'only explain', completion: 'this part' },
+  { trigger: "don't write about", completion: 'anything except' },
+  
+  // === CODE & TECHNICAL ===
+  { trigger: 'code', completion: 'a function that' },
+  { trigger: 'code a', completion: 'solution for' },
+  { trigger: 'build', completion: 'a component that' },
+  { trigger: 'build a', completion: 'feature for' },
+  { trigger: 'build an app', completion: 'that' },
+  { trigger: 'implement', completion: 'a solution for' },
+  { trigger: 'implement this', completion: 'feature' },
+  { trigger: 'add', completion: 'functionality for' },
+  { trigger: 'add a', completion: 'new feature that' },
+  { trigger: 'convert', completion: 'this to' },
+  { trigger: 'convert this', completion: 'into a different format' },
+  { trigger: 'format', completion: 'this data as' },
+  { trigger: 'format this', completion: 'properly' },
+  { trigger: 'test', completion: 'this functionality' },
+  { trigger: 'test this', completion: 'and find any issues' },
+  { trigger: 'validate', completion: 'this approach' },
+  { trigger: 'validate this', completion: 'input' },
+  { trigger: 'write a python', completion: 'script for' },
+  { trigger: 'write the code', completion: 'for a chrome extension that' },
+  { trigger: 'please write me', completion: 'a detailed code to build' },
+  { trigger: 'please give me', completion: 'a guide on how to' },
+  { trigger: 'please provide', completion: 'a JavaScript code for' },
+  { trigger: 'what is the html', completion: 'code for' },
+  
+  // === COMMUNICATION ===
+  { trigger: 'respond', completion: 'to this message professionally' },
+  { trigger: 'respond to', completion: 'this inquiry' },
+  { trigger: 'reply', completion: 'to this email' },
+  { trigger: 'reply to', completion: 'this feedback' },
+  { trigger: 'answer', completion: 'this question' },
+  { trigger: 'answer the', completion: 'following' },
+  { trigger: 'clarify', completion: 'this point' },
+  { trigger: 'clarify the', completion: 'requirements for' },
+  { trigger: 'elaborate', completion: 'on this topic' },
+  { trigger: 'elaborate on', completion: 'the details of' },
+  { trigger: 'expand', completion: 'on this idea' },
+  { trigger: 'expand this', completion: 'into more detail' },
+  { trigger: 'for this target', completion: 'audience' },
+  
+  // === DATA & NUMBERS ===
+  { trigger: 'calculate', completion: 'the total for' },
+  { trigger: 'calculate the', completion: 'difference between' },
+  { trigger: 'estimate', completion: 'the time needed for' },
+  { trigger: 'estimate how', completion: 'long this will take' },
+  { trigger: 'count', completion: 'the number of' },
+  { trigger: 'measure', completion: 'the impact of' },
+  { trigger: 'quantify', completion: 'the results of' },
+  
+  // === ORGANIZATION & PLANNING ===
+  { trigger: 'organize', completion: 'this information' },
+  { trigger: 'organize this', completion: 'into categories' },
+  { trigger: 'prioritize', completion: 'these tasks' },
+  { trigger: 'prioritize the', completion: 'most important items' },
+  { trigger: 'schedule', completion: 'the timeline for' },
+  { trigger: 'schedule a', completion: 'plan for' },
+  { trigger: 'structure', completion: 'this document' },
+  { trigger: 'structure the', completion: 'content for' },
+  { trigger: 'categorize', completion: 'these items' },
+  { trigger: 'categorize this', completion: 'information' },
+  { trigger: 'sort', completion: 'these options by' },
+  { trigger: 'sort this', completion: 'list' },
+  { trigger: 'rank', completion: 'these options' },
+  { trigger: 'rank the', completion: 'priorities for' },
+  
+  // === CREATIVE & IDEATION ===
+  { trigger: 'imagine', completion: 'a scenario where' },
+  { trigger: 'imagine if', completion: 'we could' },
+  { trigger: 'think of', completion: 'ways to' },
+  { trigger: 'think about', completion: 'how we could' },
+  { trigger: 'come up', completion: 'with ideas for' },
+  { trigger: 'explore', completion: 'the possibilities of' },
+  { trigger: 'explore how', completion: 'we can' },
+  { trigger: 'consider', completion: 'the implications of' },
+  { trigger: 'consider how', completion: 'to approach' },
+  { trigger: 'propose', completion: 'a solution for' },
+  { trigger: 'propose a', completion: 'new approach to' },
+  { trigger: 'invent', completion: 'a creative way to' },
+  { trigger: 'innovate', completion: 'on this concept' },
+  
+  // === CONVERSATIONAL STARTERS ===
+  { trigger: 'i need', completion: 'help with' },
+  { trigger: 'i need to', completion: 'figure out how to' },
+  { trigger: 'i need a', completion: 'solution for' },
+  { trigger: 'i want', completion: 'to understand' },
+  { trigger: 'i want to', completion: 'learn more about' },
+  { trigger: 'i want you to', completion: 'help me with' },
+  { trigger: "i'm trying to", completion: 'figure out' },
+  { trigger: "i'm looking for", completion: 'a way to' },
+  { trigger: "i'm working on", completion: 'a project about' },
+  { trigger: "i'm struggling with", completion: 'understanding' },
+  { trigger: 'could you', completion: 'help me understand' },
+  { trigger: 'could you please', completion: 'explain' },
+  { trigger: 'would you', completion: 'be able to help with' },
+  { trigger: 'would you mind', completion: 'explaining' },
+  { trigger: 'is there a', completion: 'way to' },
+  { trigger: 'is it possible', completion: 'to' },
+  { trigger: "i'd like to", completion: 'know more about' },
+  { trigger: "i'd like you to", completion: 'help me' },
+  { trigger: 'let me know', completion: 'the best way to' },
+  { trigger: 'do you know', completion: 'how to' },
+  { trigger: 'do you have', completion: 'any suggestions for' },
+  
+  // === SPECIFIC FORMATS ===
+  { trigger: 'in a table', completion: 'format' },
+  { trigger: 'as a list', completion: 'with bullet points' },
+  { trigger: 'as a json', completion: 'object' },
+  { trigger: 'in markdown', completion: 'format' },
+  { trigger: 'with examples', completion: 'and explanations' },
+  { trigger: 'with code', completion: 'examples' },
+  { trigger: 'step by step', completion: 'guide for' },
+  { trigger: 'in detail', completion: 'please explain' },
+  { trigger: 'briefly', completion: 'explain' },
+  { trigger: 'a long explanation', completion: 'of' },
+  
+  // === QUESTIONS ABOUT TOOLS/TECH ===
+  { trigger: 'using', completion: 'this tool for' },
+  { trigger: 'leveraging', completion: 'the power of' },
+  { trigger: 'maximizing', completion: 'the ROI of' },
+  { trigger: 'integrating', completion: 'this with' },
+  { trigger: 'best practices for', completion: 'creating' },
+];
+
 interface ChatInputProps {
   input: string;
   setInput: (value: string) => void;
@@ -62,9 +395,79 @@ export function ChatInput({
 }: ChatInputProps) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [prediction, setPrediction] = useState<string>('');
   const selectedModel = AI_MODELS.find(m => m.id === model) || AI_MODELS[0];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const predictionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Find matching prediction based on input
+  const findPrediction = useCallback((text: string): string => {
+    if (!text || text.length < 2) return '';
+    
+    const lowerText = text.toLowerCase().trim();
+    
+    // Find a suggestion that matches the start of what user is typing
+    for (const suggestion of PROMPT_SUGGESTIONS) {
+      const trigger = suggestion.trigger.toLowerCase();
+      
+      // If user text starts with part of the trigger
+      if (trigger.startsWith(lowerText) && lowerText.length < trigger.length) {
+        // Return the rest of the trigger + completion
+        return trigger.slice(lowerText.length) + ' ' + suggestion.completion;
+      }
+      
+      // If user text exactly matches or extends past the trigger
+      if (lowerText.startsWith(trigger) && lowerText.length >= trigger.length) {
+        const afterTrigger = lowerText.slice(trigger.length).trim();
+        const completionLower = suggestion.completion.toLowerCase();
+        
+        // If there's nothing after trigger, suggest the full completion
+        if (!afterTrigger) {
+          return ' ' + suggestion.completion;
+        }
+        
+        // If what's after trigger starts matching completion, suggest the rest
+        if (completionLower.startsWith(afterTrigger) && afterTrigger.length < completionLower.length) {
+          return suggestion.completion.slice(afterTrigger.length);
+        }
+      }
+    }
+    
+    return '';
+  }, []);
+
+  // Update prediction when input changes (debounced)
+  useEffect(() => {
+    if (predictionTimeoutRef.current) {
+      clearTimeout(predictionTimeoutRef.current);
+    }
+    
+    if (!input || isStreaming || isLoading) {
+      setPrediction('');
+      return;
+    }
+    
+    // Debounce prediction to avoid flickering
+    predictionTimeoutRef.current = setTimeout(() => {
+      const newPrediction = findPrediction(input);
+      setPrediction(newPrediction);
+    }, 100);
+    
+    return () => {
+      if (predictionTimeoutRef.current) {
+        clearTimeout(predictionTimeoutRef.current);
+      }
+    };
+  }, [input, isStreaming, isLoading, findPrediction]);
+
+  // Accept prediction with Tab
+  const acceptPrediction = useCallback(() => {
+    if (prediction) {
+      setInput(input + prediction);
+      setPrediction('');
+    }
+  }, [input, prediction, setInput]);
 
   // Handle file selection
   const handleFileSelect = useCallback((e: ChangeEvent<HTMLInputElement>) => {
@@ -151,8 +554,33 @@ export function ChatInput({
   }, [input, adjustHeight]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Tab to accept prediction
+    if (e.key === 'Tab' && prediction) {
+      e.preventDefault();
+      acceptPrediction();
+      return;
+    }
+    
+    // Escape to dismiss prediction
+    if (e.key === 'Escape' && prediction) {
+      e.preventDefault();
+      setPrediction('');
+      return;
+    }
+    
+    // Right arrow at end of input accepts prediction
+    if (e.key === 'ArrowRight' && prediction && textareaRef.current) {
+      const { selectionStart, selectionEnd, value } = textareaRef.current;
+      if (selectionStart === selectionEnd && selectionStart === value.length) {
+        e.preventDefault();
+        acceptPrediction();
+        return;
+      }
+    }
+    
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      setPrediction(''); // Clear prediction on submit
       if (!disabled && !isLoading && !isStreaming && (input.trim() || attachments.length > 0)) {
         onSubmit(attachments.length > 0 ? attachments : undefined);
         setAttachments([]);
@@ -225,8 +653,23 @@ export function ChatInput({
           </div>
         )}
 
-        {/* Textarea Row */}
-        <div className="px-4 py-3">
+        {/* Textarea Row with Predictive Text */}
+        <div className="px-4 py-3 relative">
+          {/* Ghost text layer - shows prediction */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 px-4 py-3 pointer-events-none overflow-hidden"
+          >
+            <div className="text-sm whitespace-pre-wrap break-words">
+              {/* Invisible text matching input to position ghost text correctly */}
+              <span className="invisible">{input}</span>
+              {/* Ghost text prediction */}
+              {prediction && (
+                <span className="text-muted-foreground/50">{prediction}</span>
+              )}
+            </div>
+          </div>
+          
           <textarea
             ref={textareaRef}
             value={input}
@@ -236,12 +679,21 @@ export function ChatInput({
             disabled={disabled || isLoading}
             className={cn(
               'w-full min-h-[24px] max-h-[200px] resize-none bg-transparent text-sm',
-              'focus:outline-none',
+              'focus:outline-none relative z-10',
               'placeholder:text-muted-foreground',
               'disabled:cursor-not-allowed disabled:opacity-50'
             )}
             rows={1}
           />
+          
+          {/* Tab hint */}
+          {prediction && (
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20">
+              <span className="text-[10px] text-muted-foreground/70 bg-muted px-1.5 py-0.5 rounded border border-border/50">
+                Tab
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Bottom Toolbar */}

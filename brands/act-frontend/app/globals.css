@@ -5,6 +5,7 @@
 
 /* include plugins */
 @plugin "tailwindcss-animate";
+@plugin "@tailwindcss/typography";
 
 /* define design tokens (light mode) */
 :root {
@@ -210,4 +211,100 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Highlight.js - VS Code Dark+ inspired theme */
+.hljs {
+  color: #d4d4d4;
+  background: #1e1e1e;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #6a9955;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-deletion {
+  color: #569cd6;
+}
+
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: #4ec9b0;
+}
+
+.hljs-string,
+.hljs-addition,
+.hljs-attribute {
+  color: #ce9178;
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+  color: #b5cea8;
+}
+
+.hljs-type,
+.hljs-params,
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #4ec9b0;
+}
+
+.hljs-meta,
+.hljs-link {
+  color: #9cdcfe;
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-function {
+  color: #dcdcaa;
+}
+
+.hljs-attr,
+.hljs-property {
+  color: #9cdcfe;
+}
+
+.hljs-regexp {
+  color: #d16969;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+  color: #c586c0;
+}
+
+.hljs-strong {
+  font-weight: bold;
+  color: #d7ba7d;
+}
+
+/* Markdown-specific syntax highlighting */
+.hljs-section {
+  color: #4fc1ff;
+  font-weight: bold;
+}
+
+.hljs-bullet {
+  color: #6796e6;
+}
+
+.hljs-link {
+  color: #4ec9b0;
+}
+
+.hljs-code {
+  color: #ce9178;
 }

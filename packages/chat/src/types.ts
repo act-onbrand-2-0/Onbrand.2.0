@@ -32,12 +32,20 @@ export interface Message {
 export type MessageRole = 'system' | 'user' | 'assistant' | 'function';
 
 export type ChatModel = 
+  // Legacy models (backward compatibility)
   | 'gpt-4'
   | 'gpt-4-turbo'
   | 'gpt-3.5-turbo'
   | 'claude-3-opus'
   | 'claude-3-sonnet'
-  | 'claude-3-haiku';
+  | 'claude-3-haiku'
+  // New model IDs
+  | 'claude-4.5'
+  | 'gpt-5.2'
+  | 'gemini-3.1'
+  | 'gpt-4o'
+  | 'gpt-4o-mini'
+  | 'gemini-pro';
 
 export interface ChatSettings {
   temperature: number;

@@ -36,6 +36,7 @@ interface Conversation {
   system_prompt: string | null;
   last_message_at: string;
   created_at: string;
+  visibility?: 'private' | 'shared' | null;
 }
 
 interface Message {
@@ -57,6 +58,7 @@ export default function ChatPage() {
   const [brandId, setBrandId] = useState<string | null>(null);
   const [brandName, setBrandName] = useState<string>('');
   const [userName, setUserName] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
   const [userAvatar, setUserAvatar] = useState<string>('');
   
   // Conversation state
@@ -285,7 +287,8 @@ export default function ChatPage() {
       }
 
       setUserId(session.user.id);
-      setUserName(session.user.user_metadata?.full_name || session.user.email || 'User');
+      setUserName(session.user.user_metadata?.full_name || '');
+      setUserEmail(session.user.email || '');
       setUserAvatar(session.user.user_metadata?.avatar_url || '');
 
       // Get user's brand
@@ -311,11 +314,11 @@ export default function ChatPage() {
     async function fetchConversations() {
       setIsLoadingConversations(true);
       
+      // RLS handles visibility - returns user's own + shared conversations from their brand
       const { data, error } = await supabase
         .from('conversations')
         .select('*')
         .eq('brand_id', brandId)
-        .eq('user_id', userId)
         .eq('archived', false)
         .order('last_message_at', { ascending: false });
 
@@ -428,12 +431,14 @@ export default function ChatPage() {
     return data;
   };
 
-  // Create new conversation
-  const handleNewChat = useCallback(async () => {
+  // Create new conversation - clears current chat and shows empty state
+  const handleNewChat = useCallback(() => {
+    console.log('New Chat clicked - clearing state');
     setCurrentConversation(null);
     setDbMessages([]);
     setAiMessages([]);
-  }, [setAiMessages]);
+    setInput(''); // Clear input field
+  }, [setAiMessages, setInput]);
 
   // Select conversation
   const handleSelectConversation = useCallback(async (conversationId: string) => {
@@ -461,20 +466,38 @@ export default function ChatPage() {
 
   // Delete conversation
   const handleDeleteConversation = useCallback(async (conversationId: string) => {
+    console.log('Deleting conversation:', conversationId);
+    
+    // First delete all messages for this conversation
+    const { error: msgError } = await supabase
+      .from('messages')
+      .delete()
+      .eq('conversation_id', conversationId);
+
+    if (msgError) {
+      console.error('Failed to delete messages:', msgError.message);
+    }
+
+    // Then delete the conversation
     const { error } = await supabase
       .from('conversations')
       .delete()
       .eq('id', conversationId);
 
-    if (!error) {
-      setConversations((prev) => prev.filter((c) => c.id !== conversationId));
-      if (currentConversation?.id === conversationId) {
-        setCurrentConversation(null);
-        setDbMessages([]);
-        setAiMessages([]);
-      }
+    if (error) {
+      console.error('Failed to delete conversation:', error.message, error.details, error.hint);
+      alert(`Failed to delete: ${error.message}`);
+      return;
     }
-  }, [currentConversation, setAiMessages]);
+
+    console.log('Delete successful for conversation:', conversationId);
+    setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+    if (currentConversation?.id === conversationId) {
+      setCurrentConversation(null);
+      setDbMessages([]);
+      setAiMessages([]);
+    }
+  }, [currentConversation, setAiMessages, supabase]);
 
   // Archive conversation
   const handleArchiveConversation = useCallback(async (conversationId: string) => {
@@ -493,11 +516,42 @@ export default function ChatPage() {
     }
   }, [currentConversation, setAiMessages]);
 
+  // Toggle conversation visibility
+  const handleToggleVisibility = useCallback(async (conversationId: string, visibility: 'private' | 'shared') => {
+    const { error } = await supabase
+      .from('conversations')
+      .update({ visibility })
+      .eq('id', conversationId);
+
+    if (!error) {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...c, visibility } : c
+        )
+      );
+      if (currentConversation?.id === conversationId) {
+        setCurrentConversation((prev) =>
+          prev ? { ...prev, visibility } : prev
+        );
+      }
+    }
+  }, [currentConversation, supabase]);
+
   // Send message
   const handleSendMessage = useCallback(async (attachments?: Attachment[]) => {
     // Allow sending if there's input text OR attachments
     const hasContent = input.trim() || (attachments && attachments.length > 0);
-    if (!hasContent || !brandId || !userId) return;
+    
+    console.log('=== handleSendMessage called ===');
+    console.log('hasContent:', hasContent);
+    console.log('brandId:', brandId);
+    console.log('userId:', userId);
+    console.log('input:', input);
+    
+    if (!hasContent || !brandId || !userId) {
+      console.log('EARLY RETURN - missing:', { hasContent, brandId, userId });
+      return;
+    }
 
     let conversation = currentConversation;
 
@@ -507,22 +561,31 @@ export default function ChatPage() {
         (attachments?.[0]?.file.name ? `Attached: ${attachments[0].file.name}` : 'New Chat');
       const title = titleBase.slice(0, 50) + (titleBase.length > 50 ? '...' : '');
       
+      console.log('Creating new conversation with:', { brand_id: brandId, user_id: userId, title, model: selectedModel });
+      
       const { data, error } = await supabase
         .from('conversations')
         .insert({
           brand_id: brandId,
           user_id: userId,
           title,
-          model: selectedModel, // Use the selected model from dropdown
+          model: selectedModel,
         })
         .select()
         .single();
 
-      if (error || !data) {
-        console.error('Failed to create conversation:', error);
+      if (error) {
+        console.error('❌ Failed to create conversation:', error.message, error.details, error.code);
+        alert(`Failed to create conversation: ${error.message}`);
+        return;
+      }
+      
+      if (!data) {
+        console.error('❌ No data returned from conversation insert');
         return;
       }
 
+      console.log('✅ Conversation created:', data);
       conversation = data;
       setCurrentConversation(data);
       setConversations((prev) => [data, ...prev]);
@@ -593,11 +656,15 @@ export default function ChatPage() {
       onSelectConversation={handleSelectConversation}
       onDeleteConversation={handleDeleteConversation}
       onArchiveConversation={handleArchiveConversation}
+      onToggleVisibility={handleToggleVisibility}
       onSendMessage={handleSendMessage}
       onStopGeneration={stop}
       onRegenerate={handleRegenerate}
       onModelChange={setSelectedModel}
       brandName={brandName}
+      currentUserId={userId}
+      userName={userName}
+      userEmail={userEmail}
     />
   );
 }

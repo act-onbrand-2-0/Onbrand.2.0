@@ -584,7 +584,7 @@ function ProjectItem({
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept=".txt,.md,.csv,.pdf,.json,.doc,.docx,.xls,.xlsx"
+        accept=".txt,.md,.csv,.pdf,.json,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
         onChange={handleFileUpload}
       />
 

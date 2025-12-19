@@ -150,7 +150,7 @@ export function ChatContainer({
       <div 
         className={cn(
           "hidden md:flex md:flex-col md:border-r md:border-sidebar-border transition-all duration-300",
-          sidebarCollapsed ? "md:w-0 md:overflow-hidden" : "md:w-72"
+          sidebarCollapsed ? "md:w-0 md:overflow-hidden" : "md:w-100"
         )}
       >
         {hasProjects ? (

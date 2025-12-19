@@ -9,6 +9,7 @@
 
 /* define design tokens (light mode) */
 :root {
+  --sidebar-width: 320px;
   --background: hsl(0 0% 100%);
   --foreground: hsl(240 10% 3.9%);
   --card: hsl(0 0% 100%);

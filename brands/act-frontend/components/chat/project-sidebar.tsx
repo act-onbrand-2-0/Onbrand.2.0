@@ -211,7 +211,7 @@ export function ProjectSidebar({
   }
 
   return (
-    <div className="flex h-full w-72 flex-col bg-sidebar text-sidebar-foreground overflow-hidden">
+    <div className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-3">
         <div className="flex items-center gap-1">

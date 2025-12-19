@@ -136,6 +136,7 @@ export default function ChatPage() {
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const stop = useCallback(() => {
@@ -276,18 +277,51 @@ export default function ChatPage() {
       const decoder = new TextDecoder();
       let fullContent = '';
       
+      console.log('=== STARTING STREAM READ ===');
+      
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log('Stream done, fullContent length:', fullContent.length);
+          break;
+        }
         
         const chunk = decoder.decode(value, { stream: true });
+        console.log('Received chunk:', chunk.length, 'bytes');
+        
+        // Check for tool markers in the chunk
+        if (chunk.includes('[TOOL_CALL:')) {
+          const match = chunk.match(/\[TOOL_CALL:([^\]]+)\]/);
+          if (match) {
+            setActiveToolCall(match[1]);
+            console.log('Tool call detected:', match[1]);
+          }
+        }
+        if (chunk.includes('[TOOL_RESULT:')) {
+          setActiveToolCall(null);
+          console.log('Tool result received');
+        }
+        
         fullContent += chunk;
-        setStreamingContent(fullContent);
+        // Show content without tool markers in the UI
+        const displayContent = fullContent
+          .replace(/\n?\[TOOL_CALL:[^\]]+\]\n?/g, '')
+          .replace(/\n?\[TOOL_RESULT:[^\]]+\]\n?/g, '');
+        setStreamingContent(displayContent);
       }
       
+      console.log('=== STREAM COMPLETE ===');
+      console.log('Full content:', fullContent.slice(0, 200) + '...');
+      
+      // Clean tool markers from final content
+      const cleanContent = fullContent
+        .replace(/\n?\[TOOL_CALL:[^\]]+\]\n?/g, '')
+        .replace(/\n?\[TOOL_RESULT:[^\]]+\]\n?/g, '');
+      
       // Add assistant message after streaming completes
-      if (fullContent) {
-        setAiMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: fullContent }]);
+      if (cleanContent) {
+        setAiMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: cleanContent }]);
+        setActiveToolCall(null);
         
         // Save to DB
         if (conversationRef.current) {
@@ -1000,6 +1034,7 @@ export default function ChatPage() {
       isLoading={isLoadingConversations || isLoadingProjects}
       isStreaming={isStreaming}
       streamingContent={streamingContent}
+      activeToolCall={activeToolCall}
       input={input}
       selectedModel={selectedModel}
       projects={projects}

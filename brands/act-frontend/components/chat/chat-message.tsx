@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Sparkles, FileText, Copy, Check } from 'lucide-react';
+import { Sparkles, FileText, Copy, Check, Wrench, Loader2, CheckCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useState, useCallback, ReactNode, useEffect, useRef } from 'react';
@@ -135,11 +135,48 @@ export interface MessageAttachment {
   mimeType: string;
 }
 
+// Tool invocation from AI SDK
+export interface ToolInvocation {
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  state: 'partial-call' | 'call' | 'result';
+  result?: unknown;
+}
+
+// Tool call display component
+function ToolCallDisplay({ invocation }: { invocation: ToolInvocation }) {
+  const isLoading = invocation.state === 'partial-call' || invocation.state === 'call';
+  const isComplete = invocation.state === 'result';
+  
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 my-2 rounded-lg bg-muted/50 border border-border text-sm">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        {isLoading ? (
+          <Loader2 className="size-4 animate-spin text-blue-500" />
+        ) : (
+          <CheckCircle className="size-4 text-green-500" />
+        )}
+        <Wrench className="size-4" />
+        <span className="font-medium">
+          {isLoading ? 'Calling' : 'Called'} <code className="bg-muted px-1 py-0.5 rounded text-xs">{invocation.toolName}</code>
+        </span>
+      </div>
+      {isComplete && (
+        <span className="text-xs text-muted-foreground ml-auto">
+          ✓ Complete
+        </span>
+      )}
+    </div>
+  );
+}
+
 interface ChatMessageProps {
   role: 'user' | 'assistant' | 'system';
   content: string;
   isStreaming?: boolean;
   attachments?: MessageAttachment[];
+  toolInvocations?: ToolInvocation[];
 }
 
 export function ChatMessage({
@@ -147,9 +184,11 @@ export function ChatMessage({
   content,
   isStreaming = false,
   attachments,
+  toolInvocations,
 }: ChatMessageProps) {
   const isUser = role === 'user';
   const hasAttachments = attachments && attachments.length > 0;
+  const hasToolCalls = toolInvocations && toolInvocations.length > 0;
   
   // Debug: Log all messages with their attachments
   console.log(`ChatMessage [${role}] content="${content?.slice(0,30)}..." hasAttachments=${hasAttachments}`);
@@ -209,6 +248,15 @@ export function ChatMessage({
                     </div>
                   )}
                 </div>
+              ))}
+            </div>
+          )}
+
+          {/* Tool invocations */}
+          {hasToolCalls && (
+            <div className="flex flex-col gap-1">
+              {toolInvocations.map((invocation) => (
+                <ToolCallDisplay key={invocation.toolCallId} invocation={invocation} />
               ))}
             </div>
           )}

@@ -8,7 +8,7 @@ import { ProjectSidebar } from './project-sidebar';
 import { ProjectDetailView } from './project-detail-view';
 import { MessageList } from './message-list';
 import { ChatInput, type ModelId, type Attachment } from './chat-input';
-import { type MessageAttachment } from './chat-message';
+import { type MessageAttachment, type ToolInvocation } from './chat-message';
 import { SuggestedActions } from './greeting';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +17,7 @@ interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   attachments?: MessageAttachment[];
+  toolInvocations?: ToolInvocation[];
 }
 
 interface ProjectFile {
@@ -59,6 +60,7 @@ interface ChatContainerProps {
   isStreaming: boolean;
   input: string;
   streamingContent?: string;
+  activeToolCall?: string | null;
   selectedModel: ModelId;
 
   // Project state (optional)
@@ -101,6 +103,7 @@ export function ChatContainer({
   isStreaming,
   input,
   streamingContent,
+  activeToolCall,
   selectedModel,
   projects,
   projectFiles,
@@ -248,6 +251,7 @@ export function ChatContainer({
               isLoading={isLoading}
               isStreaming={isStreaming}
               streamingContent={streamingContent}
+              activeToolCall={activeToolCall}
             />
 
             {/* Suggested Actions - Show when no messages */}

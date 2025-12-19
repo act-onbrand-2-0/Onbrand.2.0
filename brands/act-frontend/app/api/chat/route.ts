@@ -1,10 +1,11 @@
-import { streamText } from "ai";
+import { streamText, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { google } from "@ai-sdk/google";
 import { type NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { PDFParse } from 'pdf-parse';
+import { createMCPManager, type MCPServerConfig } from '@/lib/mcp';
 
 // Tell Next.js this is a dynamic API route
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,59 @@ function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   return createClient(url, serviceKey);
+}
+
+// Fetch enabled MCP servers for a brand
+async function getMCPServers(brandId: string): Promise<MCPServerConfig[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('mcp_servers')
+      .select('*')
+      .eq('brand_id', brandId)
+      .eq('enabled', true)
+      .order('priority', { ascending: false });
+
+    if (error) {
+      console.error('Failed to fetch MCP servers:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching MCP servers:', error);
+    return [];
+  }
+}
+
+// Connect to MCP servers and get their tools
+async function getMCPTools(brandId: string): Promise<{ tools: Record<string, unknown>; cleanup: () => Promise<void> }> {
+  const servers = await getMCPServers(brandId);
+  
+  if (servers.length === 0) {
+    return { tools: {}, cleanup: async () => {} };
+  }
+
+  console.log(`Found ${servers.length} MCP servers for brand ${brandId}`);
+
+  const manager = createMCPManager();
+  const statuses = await manager.connectAll(servers);
+
+  const connectedCount = statuses.filter(s => s.connected).length;
+  console.log(`Connected to ${connectedCount}/${servers.length} MCP servers`);
+
+  // Log any connection errors
+  statuses.filter(s => !s.connected).forEach(s => {
+    console.warn(`MCP server ${s.serverName} failed to connect: ${s.error}`);
+  });
+
+  const tools = await manager.getAllTools();
+  console.log(`Loaded ${Object.keys(tools).length} MCP tools`);
+
+  return {
+    tools,
+    cleanup: async () => await manager.disconnectAll(),
+  };
 }
 
 // Available models with their display names and provider info
@@ -390,16 +444,109 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
     console.log('Normalized messages (first 1000 chars):', JSON.stringify(normalizedMessages, null, 2).slice(0, 1000));
     console.log('=== END DEBUG ===');
 
-    const result = streamText({
-      model: aiModel,
-      messages: normalizedMessages,
-      system: finalSystemPrompt,
-      maxTokens: 4000, // Increased for image descriptions
-      temperature: 0.7,
-    });
+    // Get MCP tools for this brand
+    const { tools: mcpTools, cleanup: cleanupMCP } = await getMCPTools(brandId);
+    const hasMCPTools = Object.keys(mcpTools).length > 0;
 
-    // Return plain text streaming response
-    return result.toTextStreamResponse();
+    if (hasMCPTools) {
+      console.log('=== MCP TOOLS DEBUG ===');
+      console.log('Available MCP tools:', Object.keys(mcpTools));
+      console.log('=== END MCP DEBUG ===');
+    }
+
+    try {
+      // Build streamText options
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const streamOptions: any = {
+        model: aiModel,
+        messages: normalizedMessages,
+        system: finalSystemPrompt,
+        maxOutputTokens: 4000, // AI SDK 5 uses maxOutputTokens
+        temperature: 0.7,
+      };
+
+      // Add MCP tools if available
+      if (hasMCPTools) {
+        streamOptions.tools = mcpTools;
+        // Allow multiple tool call steps for agentic behavior
+        streamOptions.stopWhen = stepCountIs(5);
+        // Add tool choice to allow the model to use tools
+        streamOptions.toolChoice = 'auto';
+        // Debug: log each step
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        streamOptions.onStepFinish = ({ text, toolCalls, toolResults, finishReason }: any) => {
+          console.log('=== STEP FINISHED ===');
+          console.log('Text length:', text?.length || 0);
+          console.log('Tool calls:', toolCalls?.length || 0);
+          console.log('Tool results:', toolResults?.length || 0);
+          console.log('Finish reason:', finishReason);
+          if (text) console.log('Text preview:', text.slice(0, 100) + '...');
+        };
+      }
+
+      const result = streamText(streamOptions);
+
+      // Create a custom stream that includes tool call markers
+      if (hasMCPTools) {
+        const encoder = new TextEncoder();
+        let toolCallsSent = new Set<string>();
+        
+        const customStream = new ReadableStream({
+          async start(controller) {
+            // Track tool calls via onChunk equivalent
+            for await (const part of result.fullStream) {
+              if (part.type === 'tool-call') {
+                const toolCallId = part.toolCallId;
+                if (!toolCallsSent.has(toolCallId)) {
+                  toolCallsSent.add(toolCallId);
+                  // Send tool call marker
+                  controller.enqueue(encoder.encode(`\n[TOOL_CALL:${part.toolName}]\n`));
+                }
+              } else if (part.type === 'tool-result') {
+                // Send tool result marker
+                controller.enqueue(encoder.encode(`\n[TOOL_RESULT:${part.toolName}]\n`));
+              } else if (part.type === 'text-delta') {
+                controller.enqueue(encoder.encode(part.text));
+              }
+            }
+            controller.close();
+            
+            // Cleanup MCP
+            await cleanupMCP().catch(err => {
+              console.error('MCP cleanup error:', err);
+            });
+          },
+        });
+
+        return new Response(customStream, {
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
+      }
+
+      // If we have MCP tools, we need to clean up after streaming completes
+      // Use the result's promise to handle cleanup
+      if (hasMCPTools) {
+        // Schedule cleanup when the text generation is complete
+        result.text.then(() => {
+          cleanupMCP().catch(err => {
+            console.error('MCP cleanup error:', err);
+          });
+        }).catch(() => {
+          cleanupMCP().catch(err => {
+            console.error('MCP cleanup error after failure:', err);
+          });
+        });
+      }
+
+      // Return streaming response
+      return result.toTextStreamResponse();
+    } catch (innerError) {
+      // Ensure cleanup on any error within the inner try block
+      await cleanupMCP().catch(err => {
+        console.error('MCP cleanup error in catch:', err);
+      });
+      throw innerError;
+    }
   } catch (error) {
     console.error("Chat API error:", error);
     

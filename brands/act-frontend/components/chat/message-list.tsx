@@ -1,8 +1,8 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { ArrowDown } from 'lucide-react';
-import { ChatMessage, ThinkingMessage, type MessageAttachment } from './chat-message';
+import { ArrowDown, Wrench, Loader2 } from 'lucide-react';
+import { ChatMessage, ThinkingMessage, type MessageAttachment, type ToolInvocation } from './chat-message';
 import { Greeting } from './greeting';
 
 interface Message {
@@ -10,6 +10,7 @@ interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   attachments?: MessageAttachment[];
+  toolInvocations?: ToolInvocation[];
 }
 
 interface MessageListProps {
@@ -17,6 +18,7 @@ interface MessageListProps {
   isLoading?: boolean;
   isStreaming?: boolean;
   streamingContent?: string;
+  activeToolCall?: string | null;
 }
 
 export function MessageList({
@@ -24,6 +26,7 @@ export function MessageList({
   isLoading = false,
   isStreaming = false,
   streamingContent,
+  activeToolCall,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -70,6 +73,7 @@ export function MessageList({
               role={message.role === 'system' ? 'assistant' : message.role}
               content={message.content}
               attachments={message.attachments}
+              toolInvocations={message.toolInvocations}
               isStreaming={isStreaming && index === messages.length - 1 && message.role === 'assistant'}
             />
           ))}
@@ -83,6 +87,15 @@ export function MessageList({
           )}
 
           {isLoading && !isStreaming && <ThinkingMessage />}
+
+          {/* Active Tool Call Indicator */}
+          {activeToolCall && (
+            <div className="flex items-center gap-2 px-3 py-2 mx-auto max-w-fit rounded-lg bg-blue-500/10 border border-blue-500/20 text-sm text-blue-600 dark:text-blue-400 animate-pulse">
+              <Loader2 className="size-4 animate-spin" />
+              <Wrench className="size-4" />
+              <span>Using tool: <code className="font-mono bg-blue-500/20 px-1.5 py-0.5 rounded">{activeToolCall}</code></span>
+            </div>
+          )}
 
           <div
             className="min-h-[24px] min-w-[24px] shrink-0"

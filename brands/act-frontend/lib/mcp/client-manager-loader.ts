@@ -59,6 +59,12 @@ async function loadMCPClientManager() {
     return MCPClientManagerClass;
   }
 
+  // Check if MCP is disabled (e.g., during build)
+  if (process.env.DISABLE_MCP === 'true') {
+    console.log('MCP disabled via DISABLE_MCP flag, using stub');
+    return StubMCPManager;
+  }
+
   // Check if we're in a build environment
   if (process.env.NEXT_PHASE === 'phase-production-build') {
     console.log('Build phase detected, using stub MCP manager');

@@ -19,7 +19,8 @@ try {
     env: {
       ...process.env,
       NODE_ENV: 'production',
-      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_TELEMETRY_DISABLED: '1',
+      DISABLE_MCP: 'true' // Disable MCP during build to avoid DOMMatrix errors
     }
   });
   

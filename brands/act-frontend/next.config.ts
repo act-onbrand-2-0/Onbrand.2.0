@@ -55,6 +55,14 @@ const nextConfig = {
   },
   // Use standalone output for better performance in production
   output: 'standalone',
+  
+  // Externalize packages that use browser APIs not available in Node.js build
+  serverExternalPackages: ['@ai-sdk/mcp'],
+  
+  // Configure Turbopack to not bundle problematic packages
+  turbopack: {
+    resolveExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+  },
 };
 
 export default nextConfig;

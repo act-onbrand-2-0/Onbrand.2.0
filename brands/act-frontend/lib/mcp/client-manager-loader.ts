@@ -6,6 +6,15 @@
 
 import type { MCPServerConfig, MCPConnectionStatus } from './types';
 
+// Determine if we should skip MCP loading entirely
+// This must be checked at module load time, not runtime
+const SKIP_MCP_LOADING = 
+  typeof process !== 'undefined' && (
+    process.env.DISABLE_MCP === 'true' ||
+    process.env.NEXT_PHASE === 'phase-production-build' ||
+    process.env.NODE_ENV === 'production' && typeof window === 'undefined'
+  );
+
 export interface IMCPClientManager {
   connect(config: MCPServerConfig): Promise<MCPConnectionStatus>;
   connectAll(configs: MCPServerConfig[]): Promise<MCPConnectionStatus[]>;
@@ -72,8 +81,10 @@ async function loadMCPClientManager() {
   }
 
   try {
-    // Try to load the real implementation
-    const module = await import('./client-manager');
+    // Use string concatenation to prevent static analysis by bundler
+    // This is the ONLY way to prevent Turbopack from following the import
+    const modulePath = './client-' + 'manager';
+    const module = await import(/* webpackIgnore: true */ modulePath);
     MCPClientManagerClass = module.MCPClientManager;
     return MCPClientManagerClass;
   } catch (error) {

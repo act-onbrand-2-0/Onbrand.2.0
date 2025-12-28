@@ -3,7 +3,7 @@
 import { WelcomeSection } from "./welcome-section";
 import { StatsCards } from "./stats-cards";
 import { QuickActions } from "./quick-actions";
-import { RecentActivity } from "./recent-activity";
+import { DashboardChatPrompt } from "./chat-prompt";
 
 interface DashboardContentProps {
   user?: {
@@ -28,10 +28,11 @@ interface DashboardContentProps {
 export function DashboardContent({ user, quota, stats }: DashboardContentProps) {
   return (
     <div className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 bg-background">
-      <WelcomeSection 
-        userName={user?.name} 
-        stats={stats}
-      />
+      {/* Welcome + Chat Prompt - Centered */}
+      <div className="flex flex-col items-center gap-4 pt-4 sm:pt-8">
+        <WelcomeSection userName={user?.name} />
+        <DashboardChatPrompt />
+      </div>
       
       <StatsCards 
         data={{
@@ -46,11 +47,6 @@ export function DashboardContent({ user, quota, stats }: DashboardContentProps) 
       />
       
       <QuickActions />
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <RecentActivity />
-        {/* Add more widgets here in the future */}
-      </div>
     </div>
   );
 }

@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { DashboardSidebar } from '@/components/dashboard/sidebar';
-import { DashboardHeader } from '@/components/dashboard/header';
+import { TopNav } from '@/components/dashboard/top-nav';
 import { DashboardContent } from '@/components/dashboard/content';
-import { SidebarProvider } from '@/components/ui/sidebar';
 
 interface BrandUser {
   brand_id: string;
@@ -115,37 +113,29 @@ export default function DashboardPage() {
   }
 
   return (
-    <SidebarProvider className="bg-sidebar">
-      <DashboardSidebar 
+    <div className="min-h-screen bg-background">
+      <TopNav 
         user={{
           name: userName,
           email: user?.email || '',
           avatar: user?.user_metadata?.avatar_url,
         }}
-        brand={{
-          id: brandUser?.brand_id || 'act',
-          name: brandUser?.brand_id || 'ACT',
-          memberCount: 4,
-        }}
         onSignOut={handleSignOut}
       />
-      <div className="h-svh overflow-hidden lg:p-2 w-full">
-        <div className="lg:border lg:rounded-md overflow-hidden flex flex-col items-center justify-start h-full w-full bg-background">
-          <DashboardHeader title="Dashboard" />
-          <DashboardContent 
-            user={{
-              name: userName,
-              email: user?.email || '',
-            }}
-            quota={quota || undefined}
-            stats={{
-              newChats: 3,
-              pendingTasks: 2,
-              contentCount: 12,
-            }}
-          />
-        </div>
-      </div>
-    </SidebarProvider>
+      <main className="container mx-auto px-4 py-6">
+        <DashboardContent 
+          user={{
+            name: userName,
+            email: user?.email || '',
+          }}
+          quota={quota || undefined}
+          stats={{
+            newChats: 3,
+            pendingTasks: 2,
+            contentCount: 12,
+          }}
+        />
+      </main>
+    </div>
   );
 }

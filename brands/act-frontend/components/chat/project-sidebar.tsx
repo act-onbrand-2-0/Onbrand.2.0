@@ -184,10 +184,17 @@ export function ProjectSidebar({
     });
   };
 
+  // Get IDs of default projects to exclude from folders
+  const defaultProjectIds = new Set(
+    projects.filter(p => p.is_default).map(p => p.id)
+  );
+
   // Group conversations by project
+  // Conversations in default projects go to 'uncategorized' (shown in "General" section)
   const conversationsByProject = conversations.reduce(
     (acc, conv) => {
-      const projectId = conv.project_id || 'uncategorized';
+      const isDefaultProject = conv.project_id && defaultProjectIds.has(conv.project_id);
+      const projectId = (!conv.project_id || isDefaultProject) ? 'uncategorized' : conv.project_id;
       if (!acc[projectId]) {
         acc[projectId] = [];
       }
@@ -229,7 +236,7 @@ export function ProjectSidebar({
   return (
     <div className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-3">
+      <div className="flex items-center px-3 py-3">
         <div className="flex items-center gap-1">
           {onCollapse && (
             <Button
@@ -251,16 +258,16 @@ export function ProjectSidebar({
           >
             <Plus className="size-4" />
           </Button>
-        </div>
         <Button
           variant="ghost"
           size="icon"
           className="size-8"
           onClick={() => setShowNewProjectDialog(true)}
-          title="New Project"
+            title="New Folder"
         >
           <FolderPlus className="size-4" />
         </Button>
+        </div>
       </div>
 
       {/* Projects & Conversations List */}
@@ -273,25 +280,17 @@ export function ProjectSidebar({
           </div>
         ) : (
           <div className="space-y-1">
-            {/* All Chats option */}
-            <button
-              className={cn(
-                'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
-                currentProjectId === null
-                  ? 'bg-accent text-accent-foreground'
-                  : 'hover:bg-accent/50'
-              )}
-              onClick={() => onSelectProject(null)}
-            >
-              <MessageSquare className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate text-left">All Chats</span>
-              <span className="text-xs text-muted-foreground">
-                {conversations.length}
-              </span>
-            </button>
+            {/* Folders Section */}
+            {projects.filter(p => !p.is_default).length > 0 && (
+              <div className="mt-4">
+                <h3 className="px-3 py-2 text-xs font-medium text-muted-foreground">
+                  Folders
+                </h3>
+              </div>
+            )}
 
-            {/* Projects */}
-            {projects.map((project) => (
+            {/* Projects (excluding default) */}
+            {projects.filter(p => !p.is_default).map((project) => (
               <ProjectItem
                 key={project.id}
                 project={project}
@@ -315,11 +314,11 @@ export function ProjectSidebar({
               />
             ))}
 
-            {/* Uncategorized conversations */}
+            {/* General conversations (uncategorized) */}
             {conversationsByProject['uncategorized']?.length > 0 && (
               <div className="mt-4">
                 <h3 className="px-3 py-2 text-xs font-medium text-muted-foreground">
-                  Uncategorized
+                  General
                 </h3>
                 <div className="space-y-1">
                   {conversationsByProject['uncategorized'].map((conv) => (
@@ -353,21 +352,6 @@ export function ProjectSidebar({
         )}
       </ScrollArea>
 
-      {/* User Section */}
-      <div className="mt-auto border-t border-sidebar-border p-3">
-        <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2 hover:bg-sidebar-accent transition-colors">
-          <div className="size-8 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center text-white text-sm font-medium shrink-0">
-            {(userName?.[0] || userEmail?.[0] || 'U').toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0 text-left">
-            <div className="text-sm font-medium truncate">{userName || 'User'}</div>
-            {userEmail && (
-              <div className="text-xs text-muted-foreground truncate">{userEmail}</div>
-            )}
-          </div>
-          <ChevronUp className="size-4 text-muted-foreground shrink-0" />
-        </button>
-      </div>
 
       {/* New Project Dialog */}
       <Dialog open={showNewProjectDialog} onOpenChange={setShowNewProjectDialog}>
@@ -672,13 +656,13 @@ function ProjectItem({
     <div>
       <div
         className={cn(
-          'group flex items-center gap-1 rounded-lg pr-1 transition-colors',
+          'group relative flex items-center rounded-lg transition-colors',
           isSelected ? 'bg-accent' : 'hover:bg-accent/50'
         )}
       >
         {/* Expand/Collapse Button */}
         <button
-          className="p-2 hover:bg-accent/50 rounded-l-lg"
+          className="p-2 hover:bg-accent/50 rounded-l-lg shrink-0"
           onClick={onToggle}
         >
           {isExpanded ? (
@@ -688,34 +672,35 @@ function ProjectItem({
           )}
         </button>
 
-        {/* Project Name */}
+        {/* Project Name - with right padding for count and menu */}
         <button
-          className="flex flex-1 items-center gap-2 py-2 text-sm"
+          className="flex flex-1 items-center gap-2 py-2 pr-16 text-sm min-w-0"
           onClick={onSelect}
         >
           {isExpanded ? (
-            <FolderOpen className="h-4 w-4" style={{ color: project.color }} />
+            <FolderOpen className="h-4 w-4 shrink-0" style={{ color: project.color }} />
           ) : (
-            <Folder className="h-4 w-4" style={{ color: project.color }} />
+            <Folder className="h-4 w-4 shrink-0" style={{ color: project.color }} />
           )}
-          <span className="flex-1 truncate text-left">{project.name}</span>
-          <span className="text-xs text-muted-foreground mr-1">
-            {conversations.length}
-          </span>
+          <span className="truncate text-left">{project.name}</span>
         </button>
 
-        {/* Actions Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
+        {/* Right side: count + menu - absolute positioned */}
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">
+            {conversations.length}
+          </span>
+
+          {/* Actions Menu - Always visible */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={() => onNewChat()}>
               <Plus className="mr-2 h-4 w-4" />
@@ -762,6 +747,7 @@ function ProjectItem({
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
 
       {/* Hidden file input */}
@@ -813,39 +799,45 @@ function ProjectItem({
         </div>
       )}
 
-      {/* Project Files */}
+      {/* Project Files Section */}
       {isExpanded && files.length > 0 && (
         <div className="ml-6 mt-2">
-          <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+          {/* Header */}
+          <div className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-1">
             <FileText className="h-3 w-3" />
             Context Files
           </div>
+
+          {/* File list */}
           <div className="space-y-1">
             {files.map((file) => (
               <div
                 key={file.id}
-                className="group flex items-center gap-2 rounded-md px-2 py-1 text-xs hover:bg-accent/50"
+                className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs bg-muted/30 hover:bg-muted/50"
               >
                 <File className="h-3 w-3 shrink-0 text-muted-foreground" />
                 <span className="flex-1 truncate" title={file.name}>
                   {file.name}
                 </span>
-                <span className="text-muted-foreground shrink-0">
+                <span className="text-muted-foreground/60 shrink-0 text-[10px]">
                   {formatFileSize(file.file_size)}
                 </span>
                 {file.status === 'processing' && (
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                 )}
                 {file.status === 'ready' && (
-                  <span className="text-green-500 text-[10px]">Ready</span>
+                  <span className="text-green-500 text-[10px]">✓</span>
                 )}
                 {file.status === 'error' && (
-                  <span className="text-destructive text-[10px]">Error</span>
+                  <span className="text-destructive text-[10px]">!</span>
                 )}
                 {onDeleteFile && (
                   <button
-                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
-                    onClick={() => onDeleteFile(file.id)}
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteFile(file.id);
+                    }}
                     title="Remove file"
                   >
                     <X className="h-3 w-3" />
@@ -854,19 +846,6 @@ function ProjectItem({
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Add files prompt when no files */}
-      {isExpanded && files.length === 0 && onUploadFile && (
-        <div className="ml-6 mt-2">
-          <button
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="h-3 w-3" />
-            Add context files
-          </button>
         </div>
       )}
 
@@ -1353,7 +1332,7 @@ function ConversationItem({
                     handleOpenShareDialog();
                   }}
                 >
-                  <Share2 className="mr-2 h-4 w-4" />
+                      <Share2 className="mr-2 h-4 w-4" />
                   Share
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { FolderOpen, Plus, Mic, SlidersHorizontal, File, Upload, X, Loader2 } from 'lucide-react';
+import { FolderOpen, Plus, Mic, SlidersHorizontal, File, Upload, X, Loader2, ChevronRight, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -100,107 +100,25 @@ export function ProjectDetailView({
     }
   };
 
-  const readyFilesCount = files.filter(f => f.status === 'ready').length;
-  const totalFilesCount = files.length;
-
   return (
     <div className="flex flex-col h-full bg-background">
       <div className="flex flex-col h-full w-full max-w-2xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-5">
+      <div className="flex items-center px-6 py-5">
         <div className="flex items-center gap-3">
           <FolderOpen className="h-5 w-5 text-muted-foreground" />
           <h1 className="text-xl font-semibold">{project.name}</h1>
         </div>
-
-        {/* File count badge */}
-        <Button
-          variant="outline"
-          size="sm"
-          className={cn(
-            "gap-2 rounded-full border-border",
-            showFiles && "bg-accent"
-          )}
-          onClick={() => setShowFiles(!showFiles)}
-        >
-          <File className="h-3.5 w-3.5 text-red-500" />
-          <span className="text-sm">
-            {totalFilesCount} {totalFilesCount === 1 ? 'file' : 'files'}
-          </span>
-        </Button>
       </div>
 
-      {/* Files Panel (shown when toggled) */}
-      {showFiles && (
-        <div className="border-b border-border bg-muted/30 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium">Context Files</h3>
-            {onUploadFile && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-              >
-                {isUploading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Upload className="h-3.5 w-3.5" />
-                )}
-                Add File
-              </Button>
-            )}
-          </div>
-          
-          {files.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No files added yet. Upload files to give the AI context about your project.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {files.map((file) => (
-                <div
-                  key={file.id}
-                  className="flex items-center justify-between p-2 rounded-lg bg-background border border-border"
-                >
-                  <div className="flex items-center gap-2">
-                    <File className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm truncate max-w-[200px]">{file.name}</span>
-                    {file.status === 'processing' && (
-                      <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                    )}
-                    {file.status === 'ready' && (
-                      <span className="text-xs text-green-600 bg-green-100 px-1.5 py-0.5 rounded">Ready</span>
-                    )}
-                    {file.status === 'error' && (
-                      <span className="text-xs text-red-600 bg-red-100 px-1.5 py-0.5 rounded">Error</span>
-                    )}
-                  </div>
-                  {onDeleteFile && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={() => onDeleteFile(file.id)}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            accept=".txt,.md,.csv,.pdf,.json,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-            onChange={handleFileUpload}
-          />
-        </div>
-      )}
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        accept=".txt,.md,.csv,.pdf,.json,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+        onChange={handleFileUpload}
+      />
 
       {/* New Chat Input */}
       <div className="px-4 py-3">
@@ -244,7 +162,7 @@ export function ProjectDetailView({
       </div>
 
       {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto px-4">
         {projectConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div
@@ -263,16 +181,16 @@ export function ProjectDetailView({
             </Button>
           </div>
         ) : (
-          <div className="divide-y divide-border/50">
+          <div className="space-y-1">
             {projectConversations.map((conversation) => (
               <button
                 key={conversation.id}
                 onClick={() => onSelectConversation(conversation.id)}
                 className={cn(
-                  "w-full flex items-start justify-between px-6 py-4 text-left transition-colors",
+                  "w-full flex items-start justify-between px-4 py-3 text-left transition-colors rounded-lg",
                   conversation.id === currentConversationId
-                    ? "bg-accent/50"
-                    : "hover:bg-accent/30"
+                    ? "bg-accent"
+                    : "hover:bg-accent/50"
                 )}
               >
                 <div className="flex-1 min-w-0 space-y-0.5">
@@ -288,6 +206,79 @@ export function ProjectDetailView({
                 </span>
               </button>
             ))}
+          </div>
+        )}
+
+        {/* Context Files - Collapsible Section */}
+        {files.length > 0 && (
+          <div className="mt-6 border-t border-border pt-4">
+            <button
+              onClick={() => setShowFiles(!showFiles)}
+              className="flex items-center gap-2 w-full text-left px-2 py-2 rounded-lg hover:bg-accent/50 transition-colors"
+            >
+              <ChevronRight 
+                className={cn(
+                  "h-4 w-4 text-muted-foreground transition-transform",
+                  showFiles && "rotate-90"
+                )} 
+              />
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Context Files</span>
+              <span className="text-xs text-muted-foreground ml-1">({files.length})</span>
+            </button>
+
+            {showFiles && (
+              <div className="mt-2 ml-6 space-y-1">
+                {files.map((file) => (
+                  <div
+                    key={file.id}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/30 hover:bg-muted/50"
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <File className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm truncate">{file.name}</span>
+                      {file.status === 'processing' && (
+                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
+                      )}
+                      {file.status === 'ready' && (
+                        <span className="text-xs text-green-600 shrink-0">✓</span>
+                      )}
+                      {file.status === 'error' && (
+                        <span className="text-xs text-destructive shrink-0">!</span>
+                      )}
+                    </div>
+                    {onDeleteFile && (
+                      <button
+                        className="text-muted-foreground hover:text-destructive transition-colors ml-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteFile(file.id);
+                        }}
+                        title="Remove file"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                
+                {/* Add file button */}
+                {onUploadFile && (
+                  <button
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                  >
+                    {isUploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    <span>Add file</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

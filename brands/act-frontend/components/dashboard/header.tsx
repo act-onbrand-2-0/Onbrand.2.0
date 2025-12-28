@@ -59,7 +59,7 @@ export function DashboardHeader({ title = "Dashboard" }: DashboardHeaderProps) {
       {/* Notifications */}
       <Button variant="ghost" size="icon" className="relative">
         <Bell className="size-5" />
-        <span className="absolute top-1 right-1 size-2 rounded-full bg-orange-500" />
+        <span className="absolute top-1 right-1 size-2 rounded-full bg-[#889def]" />
       </Button>
 
       {/* Mobile Menu */}

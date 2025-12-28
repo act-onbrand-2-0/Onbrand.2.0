@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { PanelLeft } from 'lucide-react';
+import { PanelLeft, Plus, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import { ChatSidebar } from './chat-sidebar';
 import { ProjectSidebar } from './project-sidebar';
 import { ProjectDetailView } from './project-detail-view';
@@ -131,7 +132,7 @@ export function ChatContainer({
   userName,
   userEmail,
 }: ChatContainerProps) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
 
   // Check if projects feature is enabled
@@ -205,17 +206,37 @@ export function ChatContainer({
 
       {/* Main Chat Area */}
       <div className="flex flex-1 flex-col min-w-0">
-        {/* Expand sidebar button - shows when collapsed */}
+        {/* Header with toggle button - shows when sidebar is collapsed */}
         {sidebarCollapsed && (
-          <div className="hidden md:block absolute top-3 left-3 z-10">
+          <div className="hidden md:flex items-center gap-1 absolute top-3 left-3 z-10">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              asChild
+              title="Back to Dashboard"
+            >
+              <Link href="/dashboard">
+                <Home className="size-4" />
+              </Link>
+            </Button>
             <Button
               variant="ghost"
               size="icon"
               className="size-8"
               onClick={() => setSidebarCollapsed(false)}
-              title="Expand sidebar"
+              title="Toggle Sidebar"
             >
               <PanelLeft className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={() => onNewChat(currentProjectId || undefined)}
+              title="New Chat"
+            >
+              <Plus className="size-4" />
             </Button>
           </div>
         )}

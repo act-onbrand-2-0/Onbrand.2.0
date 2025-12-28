@@ -26,7 +26,7 @@ const typeIcons = {
 };
 
 const typeColors = {
-  chat: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  chat: "bg-[#889def]/20 text-[#889def] dark:bg-[#889def]/20 dark:text-[#889def]",
   image: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   content: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
   check: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",

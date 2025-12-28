@@ -526,6 +526,84 @@ export default function ChatPage() {
     fetchMessages();
   }, [currentConversation, setAiMessages]);
 
+  // Handle initial message from dashboard
+  const initialMessageHandled = useRef(false);
+  const pendingDashboardMessage = useRef<string | null>(null);
+  
+  useEffect(() => {
+    // Only run once after brandId and userId are set
+    if (!brandId || !userId || initialMessageHandled.current) return;
+    
+    const initialMessage = sessionStorage.getItem('dashboard_initial_message');
+    if (initialMessage) {
+      // Clear it immediately to prevent re-triggering
+      sessionStorage.removeItem('dashboard_initial_message');
+      initialMessageHandled.current = true;
+      pendingDashboardMessage.current = initialMessage;
+      
+      // Set the input
+      setInput(initialMessage);
+      
+      // Clear current conversation to start fresh
+      setCurrentConversation(null);
+      setDbMessages([]);
+      setAiMessages([]);
+    }
+  }, [brandId, userId, setAiMessages]);
+
+  // Auto-send dashboard message after input is set
+  useEffect(() => {
+    if (pendingDashboardMessage.current && input && brandId && userId) {
+      const messageToSend = pendingDashboardMessage.current;
+      pendingDashboardMessage.current = null;
+      
+      // Create conversation and send message
+      const createAndSend = async () => {
+        // Create the conversation first
+        const title = messageToSend.slice(0, 50) + (messageToSend.length > 50 ? '...' : '');
+        
+        const { data: newConversation, error } = await supabase
+          .from('conversations')
+          .insert({
+            brand_id: brandId,
+            user_id: userId,
+            project_id: currentProjectId,
+            title,
+            model: selectedModel,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Failed to create conversation from dashboard:', error);
+          return;
+        }
+
+        if (newConversation) {
+          // Set the conversation
+          setCurrentConversation(newConversation);
+          setConversations((prev) => [newConversation, ...prev]);
+          
+          // Save user message to database
+          await supabase.from('messages').insert({
+            conversation_id: newConversation.id,
+            role: 'user',
+            content: messageToSend,
+            tokens_used: 0,
+            model: selectedModel,
+            metadata: {},
+          });
+          
+          // Clear input and send to AI
+          setInput('');
+          sendMessage(messageToSend);
+        }
+      };
+      
+      createAndSend();
+    }
+  }, [input, brandId, userId, currentProjectId, selectedModel, supabase, sendMessage]);
+
   // Save message to database
   const saveMessageToDb = async (message: {
     conversation_id: string;

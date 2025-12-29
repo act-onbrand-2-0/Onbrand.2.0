@@ -158,7 +158,7 @@ export function ChatContainer({
       <div 
         className={cn(
           "hidden md:flex md:flex-col md:border-r md:border-sidebar-border transition-all duration-300",
-          sidebarCollapsed ? "md:w-0 md:overflow-hidden" : "md:w-64"
+          sidebarCollapsed ? "md:w-0 md:overflow-hidden" : "md:w-[460px]"
         )}
       >
         {hasProjects ? (
@@ -235,7 +235,12 @@ export function ChatContainer({
               variant="ghost"
               size="icon"
               className="size-8"
-              onClick={() => onNewChat(currentProjectId || undefined)}
+              onClick={() => {
+                onNewChat(undefined);
+                if (onSelectProject) {
+                  onSelectProject(null);
+                }
+              }}
               title="New Chat"
             >
               <Plus className="size-4" />

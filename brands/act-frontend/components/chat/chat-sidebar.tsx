@@ -343,37 +343,32 @@ function ConversationItem({
     <>
       <div
         className={cn(
-          'group relative flex items-center gap-2 rounded-lg pl-3 pr-8 py-2 text-sm transition-colors cursor-pointer',
+          'flex items-center gap-1 rounded-lg px-2 py-2 text-sm transition-colors cursor-pointer',
           isActive
             ? 'bg-accent text-accent-foreground'
             : 'hover:bg-accent/50'
         )}
         onClick={onSelect}
       >
-        <MessageSquare className="h-4 w-4 shrink-0 opacity-50" />
-        <span className="flex-1 truncate">{conversation.title}</span>
+        <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-50" />
+        <span className="flex-1 truncate min-w-0 pr-1">{conversation.title}</span>
         {isShared && (
-          <span title="Shared with team">
-            <Users className="h-3 w-3 shrink-0 text-muted-foreground" />
-          </span>
+          <Users className="h-3 w-3 shrink-0 text-muted-foreground" title="Shared with team" />
         )}
         {!isOwner && (
-          <span className="text-[10px] text-muted-foreground">shared</span>
+          <span className="text-[9px] text-muted-foreground shrink-0">shared</span>
         )}
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 hover:bg-sidebar-accent"
+            <button
+              className="p-1 rounded hover:bg-accent opacity-60 hover:opacity-100 shrink-0 ml-1"
               onClick={(e) => e.stopPropagation()}
+              title="More"
             >
               <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">More</span>
-            </Button>
+            </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuContent align="end" className="w-44">
             {/* Share option - only for owner */}
             {isOwner && onToggleVisibility && (
               <>

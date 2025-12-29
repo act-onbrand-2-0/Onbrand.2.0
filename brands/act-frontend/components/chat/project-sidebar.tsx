@@ -656,98 +656,101 @@ function ProjectItem({
     <div>
       <div
         className={cn(
-          'group relative flex items-center rounded-lg transition-colors',
+          'flex items-center rounded-lg transition-colors px-1',
           isSelected ? 'bg-accent' : 'hover:bg-accent/50'
         )}
       >
         {/* Expand/Collapse Button */}
         <button
-          className="p-2 hover:bg-accent/50 rounded-l-lg shrink-0"
+          className="p-1 hover:bg-accent/50 rounded shrink-0"
           onClick={onToggle}
+          title={isExpanded ? "Collapse" : "Expand"}
         >
           {isExpanded ? (
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className="h-3.5 w-3.5" />
           ) : (
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5" />
           )}
         </button>
 
-        {/* Project Name - with right padding for count and menu */}
+        {/* Icon */}
+        {isExpanded ? (
+          <FolderOpen className="h-3.5 w-3.5 shrink-0" style={{ color: project.color }} />
+        ) : (
+          <Folder className="h-3.5 w-3.5 shrink-0" style={{ color: project.color }} />
+        )}
+        
+        {/* Name - clickable and truncates */}
         <button
-          className="flex flex-1 items-center gap-2 py-2 pr-16 text-sm min-w-0"
+          className="truncate text-left text-sm py-2 px-1 flex-1 min-w-0"
           onClick={onSelect}
+          title={project.name}
         >
-          {isExpanded ? (
-            <FolderOpen className="h-4 w-4 shrink-0" style={{ color: project.color }} />
-          ) : (
-            <Folder className="h-4 w-4 shrink-0" style={{ color: project.color }} />
-          )}
-          <span className="truncate text-left">{project.name}</span>
+          {project.name}
         </button>
-
-        {/* Right side: count + menu - absolute positioned */}
-        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          <span className="text-xs text-muted-foreground">
-            {conversations.length}
-          </span>
-
-          {/* Actions Menu - Always visible */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={() => onNewChat()}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Chat
-            </DropdownMenuItem>
-            {onUploadFile && (
-              <DropdownMenuItem
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-              >
-                {isUploading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="mr-2 h-4 w-4" />
-                )}
-                {isUploading ? 'Uploading...' : 'Add Files'}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => {
-                setNewName(project.name);
-                setShowRenameDialog(true);
-              }}
+        
+        {/* Count */}
+        <span className="text-[10px] text-muted-foreground shrink-0 px-1">
+          {conversations.length}
+        </span>
+        
+        {/* More menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="p-1 rounded hover:bg-accent opacity-60 hover:opacity-100 shrink-0"
+              onClick={(e) => e.stopPropagation()}
+              title="More"
             >
-              <Pencil className="mr-2 h-4 w-4" />
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleOpenShareDialog}>
-              <Share2 className="mr-2 h-4 w-4" />
-              Share Project
-            </DropdownMenuItem>
-            {!project.is_default && (
-              <>
-                <DropdownMenuSeparator />
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => onNewChat()}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Chat
+              </DropdownMenuItem>
+              {onUploadFile && (
                 <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => setShowDeleteDialog(true)}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+                  {isUploading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  {isUploading ? 'Uploading...' : 'Add Files'}
                 </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        </div>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  setNewName(project.name);
+                  setShowRenameDialog(true);
+                }}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenShareDialog}>
+                <Share2 className="mr-2 h-4 w-4" />
+                Share Project
+              </DropdownMenuItem>
+              {!project.is_default && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => setShowDeleteDialog(true)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
       </div>
 
       {/* Hidden file input */}
@@ -1317,7 +1320,7 @@ function ConversationItem({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
               <MoreHorizontal className="h-4 w-4" />

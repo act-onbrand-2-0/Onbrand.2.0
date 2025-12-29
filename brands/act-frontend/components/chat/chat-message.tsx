@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { useState, useCallback, ReactNode, useEffect, useRef } from 'react';
 import hljs from 'highlight.js/lib/core';
 import { motion, useSpring, useTransform } from 'motion/react';
+import { animate } from 'motion';
 // Import common languages
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
@@ -387,7 +388,14 @@ export function ThinkingMessage() {
         <div className="-mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-border">
           <Sparkles className="size-3.5 animate-pulse" />
         </div>
-        <FillTextLoader text="Generating answer" />
+        <div className="flex flex-col w-full">
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <span className="animate-pulse">Thinking</span>
+            <span className="animate-bounce delay-100">.</span>
+            <span className="animate-bounce delay-200">.</span>
+            <span className="animate-bounce delay-300">.</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -398,7 +406,7 @@ export function ThinkingMessage() {
  * A minimal Motion-based "fill text" loader inspired by Motion's Fill text example:
  * https://motion.dev/examples/react-loading-fill-text?platform=js
  */
-function FillTextLoader({ text = 'Loading' }: { text?: string }) {
+export function FillTextLoader({ text = 'Loading' }: { text?: string }) {
   // Spring progress from 0 -> 1 -> 0, looped
   const progress = useSpring(0, { stiffness: 200, damping: 30, mass: 0.4 });
 
@@ -406,8 +414,8 @@ function FillTextLoader({ text = 'Loading' }: { text?: string }) {
     let mounted = true;
     async function loop() {
       while (mounted) {
-        await progress.start(1, { duration: 1.2, ease: 'easeInOut' });
-        await progress.start(0, { duration: 1.2, ease: 'easeInOut' });
+        await animate(progress, 1, { duration: 1.2, easing: 'ease-in-out' }).finished;
+        await animate(progress, 0, { duration: 1.2, easing: 'ease-in-out' }).finished;
       }
     }
     loop();

@@ -6,16 +6,6 @@ import { type NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 // MCP imports are conditionally loaded to prevent build errors
 import type { MCPServerConfig, MCPConnectionStatus } from '@/lib/mcp/types';
-type PDFParseConstructor = typeof import('pdf-parse')['PDFParse'];
-let PDFParseCtor: PDFParseConstructor | null = null;
-
-async function getPDFParseConstructor(): Promise<PDFParseConstructor> {
-  if (!PDFParseCtor) {
-    const module = await import('pdf-parse');
-    PDFParseCtor = module.PDFParse;
-  }
-  return PDFParseCtor;
-}
 
 // Tell Next.js this is a dynamic API route
 export const dynamic = 'force-dynamic';
@@ -151,71 +141,34 @@ interface ProcessedAttachment {
   data: string; // base64 for images/PDFs, plain text for text files
 }
 
-// Production-grade PDF text extraction using pdf-parse library
-async function extractPDFText(base64Data: string): Promise<string> {
-  // Remove data URL prefix if present
-  const cleanBase64 = base64Data.includes(',')
-    ? base64Data.split(',')[1]
-    : base64Data;
-  
-  // Convert base64 to Uint8Array
-  const binaryBuffer = Buffer.from(cleanBase64, 'base64');
-  const data = new Uint8Array(binaryBuffer);
-  
+// Upload PDF to Supabase Storage for persistence
+async function uploadPDFToStorage(
+  brandId: string,
+  conversationId: string,
+  fileName: string,
+  base64Data: string
+): Promise<string | null> {
   try {
-    // Use pdf-parse for production-grade extraction
-    const PDFParse = await getPDFParseConstructor();
-    const parser = new PDFParse({ data });
+    const supabase = getSupabaseClient();
+    const cleanBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+    const buffer = Buffer.from(cleanBase64, 'base64');
     
-    // Get text content
-    const textResult = await parser.getText();
+    const filePath = `${brandId}/${conversationId}/${Date.now()}-${fileName}`;
     
-    // Build output with metadata
-    let output = '';
+    const { error } = await supabase.storage
+      .from('chat-attachments')
+      .upload(filePath, buffer, { contentType: 'application/pdf' });
     
-    // Add metadata if available
-    try {
-      const infoResult = await parser.getInfo();
-      if (infoResult.info) {
-        if (infoResult.info.Title) output += `Title: ${infoResult.info.Title}\n`;
-        if (infoResult.info.Author) output += `Author: ${infoResult.info.Author}\n`;
-        if (infoResult.info.Subject) output += `Subject: ${infoResult.info.Subject}\n`;
-        if (output) output += '\n';
-      }
-    } catch {
-      // Metadata extraction failed, continue
+    if (error) {
+      console.error('Failed to upload PDF to storage:', error);
+      return null;
     }
     
-    // Add text content organized by page
-    if (textResult.pages && textResult.pages.length > 0) {
-      for (let i = 0; i < textResult.pages.length; i++) {
-        const pageText = textResult.pages[i]?.text || '';
-        if (pageText.trim()) {
-          output += `--- Page ${i + 1} ---\n${pageText.trim()}\n\n`;
-        }
-      }
-    } else if (textResult.text) {
-      output += textResult.text;
-    }
-    
-    // Clean up and destroy parser
-    await parser.destroy();
-    
-    output = output
-      .replace(/\n{3,}/g, '\n\n')
-      .replace(/[ \t]+/g, ' ')
-      .trim();
-    
-    if (output.length < 50) {
-      return `[PDF file - minimal text content]\nThe PDF may contain primarily images or scanned content.\n\nExtracted text: ${output}`;
-    }
-    
-    console.log(`Extracted ${output.length} characters from PDF`);
-    return output;
-    
+    console.log('PDF uploaded to storage:', filePath);
+    return filePath;
   } catch (error) {
-    console.error('PDF extraction error:', error);
-    throw new Error(`Failed to extract PDF text: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error('Error uploading PDF:', error);
+    return null;
   }
 }
 
@@ -395,21 +348,29 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
                 text: `\n\n--- Content from ${attachment.name} ---\n${attachment.data}\n--- End of ${attachment.name} ---\n\n`,
               });
             } else if (attachment.mimeType === 'application/pdf') {
-              // Extract text from PDF using pdf.js
-              try {
-                const pdfText = await extractPDFText(attachment.data);
-                contentParts.push({
-                  type: 'text',
-                  text: `\n\n--- Content from ${attachment.name} (PDF) ---\n${pdfText}\n--- End of ${attachment.name} ---\n\n`,
-                });
-                console.log(`Extracted ${pdfText.length} chars from PDF: ${attachment.name}`);
-              } catch (pdfError) {
-                console.error('PDF extraction failed:', pdfError);
-                contentParts.push({
-                  type: 'text',
-                  text: `\n\n[Note: PDF file "${attachment.name}" was attached but could not be processed. Error: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}]\n\n`,
-                });
+              // Send PDF directly to LLM - Claude/Gemini can read PDFs natively
+              // This is more reliable than server-side text extraction
+              let pdfData = attachment.data;
+              if (pdfData.startsWith('data:')) {
+                pdfData = pdfData.split(',')[1]; // Get just the base64 part
               }
+              
+              console.log('Sending PDF directly to LLM:', attachment.name, 'size:', pdfData.length);
+              
+              // Upload to Supabase Storage for persistence (non-blocking)
+              if (conversationId && brandId) {
+                uploadPDFToStorage(brandId, conversationId, attachment.name, attachment.data)
+                  .catch(err => console.error('Background PDF upload failed:', err));
+              }
+              
+              // Send PDF as file attachment to LLM (native PDF reading)
+              // AI SDK uses 'mediaType' not 'mimeType'
+              contentParts.push({
+                type: 'file',
+                data: pdfData, // base64 string
+                mediaType: 'application/pdf',
+                filename: attachment.name,
+              });
             }
           }
         }

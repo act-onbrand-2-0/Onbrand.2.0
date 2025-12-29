@@ -13,6 +13,7 @@ export default function SignUpPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [jobFunction, setJobFunction] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -116,6 +117,7 @@ export default function SignUpPage() {
           data: {
             full_name: fullName,
             brand_id: brandId, // Pass brand ID to trigger
+            job_function: jobFunction || 'Other',
           },
           emailRedirectTo: getBrandCallbackUrl(),
         },
@@ -253,6 +255,26 @@ export default function SignUpPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Job Function (Role) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                What is your role?
+              </label>
+              <select
+                value={jobFunction}
+                onChange={(e) => setJobFunction(e.target.value)}
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 focus:border-black focus:outline-none focus:ring-1 focus:ring-black bg-white"
+              >
+                <option value="">Select your role</option>
+                <option value="Strategist">Strategist</option>
+                <option value="Creative">Creative</option>
+                <option value="Account Manager">Account Manager</option>
+                <option value="Social Media Manager">Social Media Manager</option>
+                <option value="Communication Manager">Communication Manager</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
 
             {/* Password Field with Generator */}

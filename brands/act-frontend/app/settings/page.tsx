@@ -34,7 +34,11 @@ export default function SettingsPage() {
   const [brandId, setBrandId] = useState<string | null>(null);
   const [brandName, setBrandName] = useState<string>('');
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [jobFunction, setJobFunction] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingJobFunction, setIsSavingJobFunction] = useState(false);
+  const [jobFunctionError, setJobFunctionError] = useState<string | null>(null);
+  const [jobFunctionSuccess, setJobFunctionSuccess] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -55,7 +59,7 @@ export default function SettingsPage() {
         // Get user's brand
         const { data: brandUserData } = await supabase
           .from('brand_users')
-          .select('brand_id, role')
+          .select('brand_id, role, job_function')
           .eq('user_id', currentUser.id)
           .maybeSingle();
 
@@ -63,6 +67,7 @@ export default function SettingsPage() {
           setBrandId(brandUserData.brand_id);
           setBrandName(brandUserData.brand_id);
           setUserRole(brandUserData.role);
+          setJobFunction(brandUserData.job_function);
         } else {
           // Fallback: derive from email domain
           if (currentUser.email) {
@@ -85,6 +90,38 @@ export default function SettingsPage() {
     const supabase = createClient();
     await supabase.auth.signOut();
     window.location.href = '/login';
+  }
+
+  async function handleJobFunctionChange(newJobFunction: string) {
+    if (!brandId) return;
+    
+    setIsSavingJobFunction(true);
+    setJobFunctionError(null);
+    setJobFunctionSuccess(false);
+    
+    try {
+      const res = await fetch('/api/me/job-function', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobFunction: newJobFunction, brandId }),
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        setJobFunction(newJobFunction);
+        setJobFunctionSuccess(true);
+        // Clear success message after 3 seconds
+        setTimeout(() => setJobFunctionSuccess(false), 3000);
+      } else {
+        setJobFunctionError(data.error || 'Failed to update job function');
+      }
+    } catch (err) {
+      console.error('Error updating job function:', err);
+      setJobFunctionError('Network error. Please try again.');
+    } finally {
+      setIsSavingJobFunction(false);
+    }
   }
 
   const isAdmin = userRole === 'owner' || userRole === 'admin';
@@ -158,6 +195,19 @@ export default function SettingsPage() {
                           Basic account and brand configuration
                         </p>
                       </div>
+                      
+                      {jobFunctionSuccess && (
+                        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md text-sm text-green-800 dark:text-green-200">
+                          Job function updated successfully!
+                        </div>
+                      )}
+                      
+                      {jobFunctionError && (
+                        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-800 dark:text-red-200">
+                          {jobFunctionError}
+                        </div>
+                      )}
+                      
                       <div className="space-y-4">
                         <div>
                           <label className="text-sm font-medium">Brand Name</label>
@@ -185,6 +235,31 @@ export default function SettingsPage() {
                             className="mt-1 w-full px-3 py-2 border rounded-md bg-muted text-muted-foreground capitalize"
                             disabled
                           />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium block mb-1">
+                            Job Function
+                          </label>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Your job function determines personalized AI suggestions in the chatbot
+                          </p>
+                          <select
+                            value={jobFunction || ''}
+                            onChange={(e) => handleJobFunctionChange(e.target.value)}
+                            disabled={isSavingJobFunction}
+                            className="w-full px-3 py-2 border rounded-md bg-background disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <option value="">Select your role...</option>
+                            <option value="Strategist">Strategist</option>
+                            <option value="Creative">Creative</option>
+                            <option value="Account Manager">Account Manager</option>
+                            <option value="Social Media Manager">Social Media Manager</option>
+                            <option value="Communication Manager">Communication Manager</option>
+                            <option value="Other">Other</option>
+                          </select>
+                          {isSavingJobFunction && (
+                            <p className="text-xs text-muted-foreground mt-1">Saving...</p>
+                          )}
                         </div>
                       </div>
                     </div>

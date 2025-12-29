@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     // Get ALL members of the same brand (using service role to bypass RLS)
     const { data: allBrandMembers, error: allMembersError } = await serviceSupabase
       .from('brand_users')
-      .select('user_id, role')
+      .select('user_id, role, job_function')
       .eq('brand_id', brandUser.brand_id);
 
     console.log('ALL members in brand:', allBrandMembers);
@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
             name: userMeta.full_name || userMeta.name || userData.user.email?.split('@')[0] || 'Unknown User',
             avatar: userMeta.avatar_url || null,
             role: member.role,
+            job_function: member.job_function || null,
           };
         } catch (err) {
           console.error('Error fetching user:', err);
@@ -98,6 +99,7 @@ export async function GET(request: NextRequest) {
             name: 'Unknown User',
             avatar: null,
             role: member.role,
+            job_function: member.job_function || null,
           };
         }
       })

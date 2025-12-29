@@ -88,6 +88,7 @@ export default function ChatPage() {
   const [userName, setUserName] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
   const [userAvatar, setUserAvatar] = useState<string>('');
+  const [jobFunction, setJobFunction] = useState<string | null>(null);
   
   // Project state
   const [projects, setProjects] = useState<Project[]>([]);
@@ -368,16 +369,23 @@ export default function ChatPage() {
       setUserEmail(session.user.email || '');
       setUserAvatar(session.user.user_metadata?.avatar_url || '');
 
-      // Get user's brand
+      // Get user's brand and job function
       const { data: brandUser } = await supabase
         .from('brand_users')
-        .select('brand_id, brands(name)')
+        .select('brand_id, job_function, brands(name)')
         .eq('user_id', session.user.id)
         .single();
 
       if (brandUser) {
         setBrandId(brandUser.brand_id);
         setBrandName((brandUser.brands as any)?.name || brandUser.brand_id);
+        setJobFunction(brandUser.job_function || null);
+        
+        // Redirect to onboarding if job_function is missing
+        if (!brandUser.job_function) {
+          router.push('/onboarding/function');
+          return;
+        }
       }
     }
 
@@ -1153,6 +1161,7 @@ export default function ChatPage() {
       currentUserId={userId}
       userName={userName}
       userEmail={userEmail}
+      jobFunction={jobFunction}
     />
   );
 }

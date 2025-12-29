@@ -267,7 +267,7 @@ function ConversationItem({
   const [teamShareMode, setTeamShareMode] = useState<'private' | 'shared'>(conversation.visibility || 'private');
   const [existingShares, setExistingShares] = useState<any[]>([]);
   const isShared = existingShares.length > 0;
-
+  
   // Fetch shares on mount to show icon
   useEffect(() => {
     const fetchShareStatus = async () => {
@@ -331,12 +331,12 @@ function ConversationItem({
 
   const handleShare = () => {
     // Open share dialog
-    setShowShareDialog(true);
+      setShowShareDialog(true);
   };
 
   const handleTeamShareChange = (newMode: 'private' | 'shared') => {
     setTeamShareMode(newMode);
-    onToggleVisibility?.();
+      onToggleVisibility?.();
   };
   
   return (
@@ -475,17 +475,17 @@ function ConversationItem({
 
               {teamShareMode === 'shared' && (
                 <div className="flex items-center gap-2 pl-6">
-                  <Input 
-                    readOnly 
+            <Input 
+              readOnly 
                     value={teamShareUrl}
                     className="flex-1 text-xs"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
+            />
+            <Button
+              size="sm"
+              variant="outline"
                     onClick={handleCopyTeamUrl}
-                    className="shrink-0"
-                  >
+              className="shrink-0"
+            >
                     {teamCopied ? (
                       <Check className="h-4 w-4" />
                     ) : (
@@ -521,9 +521,9 @@ function ConversationItem({
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Generating...
-                    </>
-                  ) : (
-                    <>
+                </>
+              ) : (
+                <>
                       <LinkIcon className="mr-2 h-4 w-4" />
                       Generate Public Link
                     </>

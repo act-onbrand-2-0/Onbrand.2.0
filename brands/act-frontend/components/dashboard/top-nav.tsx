@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   NavigationMenu,
@@ -32,6 +33,7 @@ import {
   UserCircle,
   CreditCard,
   ChevronsUpDown,
+  Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -74,8 +76,15 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="relative flex h-16 items-center px-4 md:px-6">
         {/* Logo - Left aligned */}
-        <Link href="/dashboard" className="flex items-center font-bold text-xl">
-          <span className="text-foreground">onbrand</span>
+        <Link href="/dashboard" className="flex items-center">
+          <Image
+            src="/images/Logo.png"
+            alt="onbrand"
+            width={160}
+            height={40}
+            priority
+            className="h-10 w-auto"
+          />
         </Link>
 
         {/* Navigation - Centered */}
@@ -110,28 +119,22 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
 
             {/* Create - simple link */}
             <NavigationMenuItem>
-              <Link href="/create" legacyBehavior passHref>
-                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                  Create
-                </NavigationMenuLink>
+              <Link href="/create" className={navigationMenuTriggerStyle()}>
+                Create
               </Link>
             </NavigationMenuItem>
 
             {/* Check - simple link */}
             <NavigationMenuItem>
-              <Link href="/check" legacyBehavior passHref>
-                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                  Check
-                </NavigationMenuLink>
+              <Link href="/check" className={navigationMenuTriggerStyle()}>
+                Check
               </Link>
             </NavigationMenuItem>
 
             {/* Approve - simple link */}
             <NavigationMenuItem>
-              <Link href="/approve" legacyBehavior passHref>
-                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                  Approve
-                </NavigationMenuLink>
+              <Link href="/approve" className={navigationMenuTriggerStyle()}>
+                Approve
               </Link>
             </NavigationMenuItem>
           </NavigationMenuList>
@@ -142,8 +145,10 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
           <Button variant="ghost" size="icon" className="hidden sm:flex">
             <Send className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" className="hidden sm:flex">
-            <Settings className="h-5 w-5" />
+          <Button variant="ghost" size="icon" className="hidden sm:flex" asChild title="Brand Configuration">
+            <Link href="/brand-configuration">
+              <Settings className="h-5 w-5" />
+            </Link>
           </Button>
 
           {/* User Dropdown */}
@@ -181,7 +186,13 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
               <DropdownMenuItem asChild>
                 <Link href="/settings">
                   <Settings className="h-4 w-4 mr-2" />
-                  Settings
+                  Account Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/brand-configuration">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Brand Configuration
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />

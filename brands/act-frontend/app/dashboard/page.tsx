@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { TopNav } from '@/components/dashboard/top-nav';
 import { DashboardContent } from '@/components/dashboard/content';
@@ -21,6 +22,7 @@ interface Quota {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [userName, setUserName] = useState<string>('');
   const [brandUser, setBrandUser] = useState<BrandUser | null>(null);
@@ -71,6 +73,12 @@ export default function DashboardPage() {
           setBrandUser(brandUserData);
           brandId = brandUserData.brand_id;
 
+          // Check if job_function is missing and redirect to onboarding
+          if (!brandUserData.job_function) {
+            router.push('/onboarding/function');
+            return;
+          }
+
           const { data: quotaData, error: quotaError } = await supabase
             .from('brand_quotas')
             .select('*')
@@ -93,7 +101,7 @@ export default function DashboardPage() {
     }
 
     loadUserData();
-  }, []);
+  }, [router]);
 
   async function handleSignOut() {
     const supabase = createClient();

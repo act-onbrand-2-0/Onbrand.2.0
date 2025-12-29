@@ -95,6 +95,7 @@ interface ChatContainerProps {
   currentUserId?: string;
   userName?: string;
   userEmail?: string;
+  jobFunction?: string | null;
 }
 
 export function ChatContainer({
@@ -131,6 +132,7 @@ export function ChatContainer({
   currentUserId,
   userName,
   userEmail,
+  jobFunction,
 }: ChatContainerProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
@@ -284,6 +286,7 @@ export function ChatContainer({
                 onSelect={(text) => {
                   setInput(text);
                 }} 
+                jobFunction={jobFunction}
               />
             )}
 

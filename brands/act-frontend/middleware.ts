@@ -99,6 +99,7 @@ export async function middleware(request: NextRequest) {
   }
   
   // Handle parent domain (onbrand.ai)
+  // Note: Removed the rewrite to /marketing - now the root page will handle the homepage
   if (
     hostname === 'onbrand.ai' || 
     hostname === 'www.onbrand.ai' ||
@@ -106,10 +107,8 @@ export async function middleware(request: NextRequest) {
     hostname === 'www.onbrandai.app' ||
     hostname.startsWith('localhost')
   ) {
-    // Redirect to marketing page for parent domain
-    if (url.pathname === '/' || url.pathname === '') {
-      return NextResponse.rewrite(new URL('/marketing', request.url));
-    }
+    // Let the root page handle the homepage display
+    // It will show the new toggle homepage or redirect to dashboard if logged in
   }
   
   // Get the brand from URL path if it exists (already checked above)

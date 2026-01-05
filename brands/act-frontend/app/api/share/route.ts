@@ -2,6 +2,33 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import bcrypt from 'bcryptjs';
 
+/**
+ * Get the base URL for share links
+ * Priority: NEXT_PUBLIC_SITE_URL > Netlify URLs > request host > fallback
+ */
+function getBaseUrl(request: NextRequest): string {
+  // Check configured site URL first
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
+  }
+  
+  // Netlify environment variables
+  const netlifyUrl = process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_URL || process.env.URL;
+  if (netlifyUrl) {
+    return netlifyUrl;
+  }
+  
+  // Fall back to request host header
+  const host = request.headers.get('host');
+  if (host && !host.includes('localhost')) {
+    const protocol = request.headers.get('x-forwarded-proto') || 'https';
+    return `${protocol}://${host}`;
+  }
+  
+  // Final fallback for local dev
+  return 'http://localhost:3000';
+}
+
 // POST /api/share - Create a new share token
 // Body: { resourceType: 'conversation' | 'project', resourceId: string, expiresInDays?: number, password?: string, maxViews?: number }
 export async function POST(request: NextRequest) {
@@ -92,10 +119,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create share token' }, { status: 500 });
     }
 
+    const baseUrl = getBaseUrl(request);
+    
     return NextResponse.json({
       id: token.id,
       token: token.token,
-      shareUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/s/${token.token}`,
+      shareUrl: `${baseUrl}/s/${token.token}`,
       expiresAt: token.expires_at,
       maxViews: token.max_views,
       requiresPassword: !!passwordHash,

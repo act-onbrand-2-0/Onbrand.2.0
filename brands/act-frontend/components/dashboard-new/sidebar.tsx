@@ -51,14 +51,14 @@ import { useTheme } from "next-themes";
 
 const menuItems = [
   {
-    title: "Chat",
-    icon: Sparkles,
-    href: "/dashboard/chat",
-  },
-  {
     title: "Dashboard",
     icon: LayoutGrid,
     href: "/dashboard",
+  },
+  {
+    title: "Chat",
+    icon: Sparkles,
+    href: "/dashboard/chat",
   },
   {
     title: "Brand Config",

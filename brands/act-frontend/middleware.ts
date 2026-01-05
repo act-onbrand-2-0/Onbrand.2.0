@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { updateSession } from './lib/supabase/middleware';
-import { isValidBrand } from './lib/brand';
+import { createClient } from '@supabase/supabase-js';
 
 // Routes that require authentication
 const PROTECTED_ROUTES = [
@@ -25,6 +25,74 @@ const PUBLIC_ROUTES = [
   '/favicon.ico',
 ];
 
+// Main domains (no brand subdomain)
+const MAIN_DOMAINS = [
+  'onbrand.ai',
+  'www.onbrand.ai',
+  'onbrandai.app',
+  'www.onbrandai.app',
+];
+
+/**
+ * Validate brand exists in database by subdomain
+ * Uses direct Supabase query for Edge runtime compatibility
+ */
+async function validateBrandSubdomain(subdomain: string): Promise<{ valid: boolean; brandId: string | null }> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Missing Supabase environment variables');
+    return { valid: false, brandId: null };
+  }
+  
+  try {
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const { data, error } = await supabase
+      .from('brands')
+      .select('id, subdomain, is_active')
+      .eq('subdomain', subdomain.toLowerCase())
+      .single();
+    
+    if (error || !data) {
+      return { valid: false, brandId: null };
+    }
+    
+    // Check if brand is active (default to true if column doesn't exist yet)
+    const isActive = data.is_active !== false;
+    return { valid: isActive, brandId: data.id };
+  } catch (e) {
+    console.error('Error validating brand:', e);
+    return { valid: false, brandId: null };
+  }
+}
+
+/**
+ * Extract subdomain from hostname
+ */
+function extractSubdomain(hostname: string): string {
+  // Remove port if present
+  let host = hostname.split(':')[0].toLowerCase();
+  
+  // Check for subdomain pattern (*.onbrandai.app or *.onbrand.ai)
+  const subdomainMatch = host.match(/^([^.]+)\.(onbrandai\.app|onbrand\.ai)$/);
+  if (subdomainMatch && subdomainMatch[1] !== 'www') {
+    return subdomainMatch[1];
+  }
+  
+  // For localhost or other domains, extract first part
+  const parts = host.split('.');
+  return parts[0];
+}
+
+/**
+ * Check if hostname is a main domain (not a brand subdomain)
+ */
+function isMainDomain(hostname: string): boolean {
+  const host = hostname.split(':')[0].toLowerCase();
+  return MAIN_DOMAINS.includes(host) || host === 'localhost' || host === '127.0.0.1';
+}
+
 export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || '';
   const url = request.nextUrl;
@@ -35,11 +103,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  // Extract subdomain
-  let subdomain = hostname.split('.')[0];
-  if (subdomain.includes(':')) {
-    subdomain = subdomain.split(':')[0];
-  }
+  // Extract subdomain from hostname
+  const subdomain = extractSubdomain(hostname);
+  const isMain = isMainDomain(hostname);
   
   // Check if this is a protected route
   const isProtectedRoute = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
@@ -56,72 +122,68 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
     
-    // User is authenticated - continue with the updated response (includes refreshed cookies)
+    // User is authenticated - add brand headers to the response
+    supabaseResponse.headers.set('x-brand-subdomain', subdomain);
+    supabaseResponse.headers.set('x-hostname', hostname);
+    supabaseResponse.headers.set('x-is-main-domain', String(isMain));
     return supabaseResponse;
   }
   
-  // Check if this is a brand-specific path
+  // Check if this is a brand-specific path (/brand/[brandName]/...)
   const brandPathMatch = url.pathname.match(/^\/brand\/([\w-]+)/);
   
   if (brandPathMatch) {
     const requestedBrandId = brandPathMatch[1];
     
-    // Ensure the brand exists
-    if (!isValidBrand(requestedBrandId)) {
-      // Brand doesn't exist - redirect to 404
+    // Validate brand exists in database
+    const { valid, brandId } = await validateBrandSubdomain(requestedBrandId);
+    
+    if (!valid) {
+      // Brand doesn't exist or is inactive - redirect to 404
       return NextResponse.redirect(new URL('/404', request.url));
     }
     
-    // Get session and user for tenant isolation
-    const authHeader = request.headers.get('authorization');
-    let userId = null;
+    // Pass validated brand ID
+    const response = NextResponse.next();
+    response.headers.set('x-brand-subdomain', requestedBrandId);
+    response.headers.set('x-brand-id', brandId || requestedBrandId);
+    response.headers.set('x-hostname', hostname);
+    return response;
+  }
+  
+  // For subdomain access (e.g., ACT.onbrandai.app), validate the brand
+  if (!isMain && subdomain) {
+    const { valid, brandId } = await validateBrandSubdomain(subdomain);
     
-    // Only check authorization for authenticated routes
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        // If we have auth token, get the user ID
-        // In a real implementation you'd validate the JWT token here
-        // For now, we'll assume the user is always allowed
-      } catch (e) {
-        console.error('Auth error:', e);
-      }
+    if (!valid) {
+      // Invalid subdomain - redirect to main site
+      const mainUrl = new URL('/', request.url);
+      mainUrl.hostname = 'onbrandai.app';
+      return NextResponse.redirect(mainUrl);
     }
     
-    // For now, allow access in development - in production, you would check:
-    // if (userId && process.env.NODE_ENV === 'production') {
-    //   // Check if user has access to this brand
-    //   const hasAccess = await hasAccessToBrand(userId, requestedBrandId);
-    //   if (!hasAccess) {
-    //     // User doesn't have access - redirect to their default brand
-    //     return NextResponse.redirect(new URL('/unauthorized', request.url));
-    //   }
-    // }
+    // Valid brand subdomain - pass brand info to app
+    const response = NextResponse.next();
+    response.headers.set('x-brand-subdomain', subdomain);
+    response.headers.set('x-brand-id', brandId || subdomain);
+    response.headers.set('x-hostname', hostname);
+    response.headers.set('x-is-main-domain', 'false');
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Brand validated: ${subdomain} (ID: ${brandId}) from ${hostname}`);
+    }
+    
+    return response;
   }
   
-  // Handle parent domain (onbrand.ai)
-  // Note: Removed the rewrite to /marketing - now the root page will handle the homepage
-  if (
-    hostname === 'onbrand.ai' || 
-    hostname === 'www.onbrand.ai' ||
-    hostname === 'onbrandai.app' ||
-    hostname === 'www.onbrandai.app' ||
-    hostname.startsWith('localhost')
-  ) {
-    // Let the root page handle the homepage display
-    // It will show the new toggle homepage or redirect to dashboard if logged in
-  }
-  
-  // Get the brand from URL path if it exists (already checked above)
-  let brandFromUrl = brandPathMatch ? brandPathMatch[1] : null;
-  
-  // Pass brand subdomain to the app via header, prioritizing URL path brand if available
+  // Main domain - pass through with headers
   const response = NextResponse.next();
-  response.headers.set('x-brand-subdomain', brandFromUrl || subdomain);
+  response.headers.set('x-brand-subdomain', subdomain);
   response.headers.set('x-hostname', hostname);
+  response.headers.set('x-is-main-domain', String(isMain));
   
-  // Optional: Log brand detection for debugging
   if (process.env.NODE_ENV === 'development') {
-    console.log(`Brand detected: ${subdomain} from ${hostname}`);
+    console.log(`Request: ${hostname}${pathname} (subdomain: ${subdomain}, isMain: ${isMain})`);
   }
   
   return response;

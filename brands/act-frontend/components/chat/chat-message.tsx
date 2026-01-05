@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Sparkles, FileText, Copy, Check, Wrench, Loader2, CheckCircle, Share2 } from 'lucide-react';
+import { Sparkles, FileText, Copy, Check, Wrench, Loader2, CheckCircle, Share2, Users } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useState, useCallback, ReactNode, useEffect, useRef } from 'react';
@@ -9,6 +9,15 @@ import hljs from 'highlight.js/lib/core';
 import { motion, useSpring, useTransform } from 'motion/react';
 import { animate } from 'motion';
 import { LoadingJumpingDots } from './loading-dots';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 // Import common languages
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
@@ -174,9 +183,22 @@ function ToolCallDisplay({ invocation }: { invocation: ToolInvocation }) {
   );
 }
 
+// Team member type
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+}
+
 // Message action buttons (copy and share) for assistant messages
 function MessageActions({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareSuccess, setShareSuccess] = useState(false);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -188,43 +210,179 @@ function MessageActions({ content }: { content: string }) {
     }
   }, [content]);
 
-  const handleShare = useCallback(async () => {
+  const loadTeamMembers = async () => {
+    setIsLoadingMembers(true);
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: 'Chat Response',
-          text: content,
-        });
-      } else {
-        // Fallback for desktop: open email or show share options
-        const shareUrl = `mailto:?subject=Shared Chat Response&body=${encodeURIComponent(content)}`;
-        window.open(shareUrl, '_blank');
+      const res = await fetch('/api/brand-members');
+      if (res.ok) {
+        const data = await res.json();
+        setTeamMembers(data.members || []);
       }
-    } catch (err) {
-      // User cancelled share or error occurred
-      if ((err as Error).name !== 'AbortError') {
-        console.log('Share failed:', err);
-      }
+    } catch (error) {
+      console.error('Error loading team members:', error);
+    } finally {
+      setIsLoadingMembers(false);
     }
-  }, [content]);
+  };
+
+  const handleOpenShareDialog = () => {
+    setShowShareDialog(true);
+    setShareSuccess(false);
+    setSelectedMembers(new Set());
+    loadTeamMembers();
+  };
+
+  const handleToggleMember = (memberId: string) => {
+    setSelectedMembers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(memberId)) {
+        newSet.delete(memberId);
+      } else {
+        newSet.add(memberId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleShareWithSelected = async () => {
+    if (selectedMembers.size === 0) return;
+    
+    setIsSharing(true);
+    try {
+      // Share the message content via email or internal notification
+      const userIds = Array.from(selectedMembers);
+      const response = await fetch('/api/share-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content,
+          userIds,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to share');
+      }
+      
+      setShareSuccess(true);
+      setTimeout(() => {
+        setShareSuccess(false);
+        setShowShareDialog(false);
+      }, 2000);
+    } catch (error) {
+      console.error('Error sharing message:', error);
+      alert('Failed to share message. Please try again.');
+    } finally {
+      setIsSharing(false);
+    }
+  };
 
   return (
-    <div className="flex items-center gap-1 mt-2">
-      <button
-        onClick={handleCopy}
-        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-        title="Copy response"
-      >
-        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-      </button>
-      <button
-        onClick={handleShare}
-        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-        title="Share response"
-      >
-        <Share2 className="size-4" />
-      </button>
-    </div>
+    <>
+      <div className="flex items-center gap-1 mt-2">
+        <button
+          onClick={handleCopy}
+          className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+          title="Copy response"
+        >
+          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+        </button>
+        <button
+          onClick={handleOpenShareDialog}
+          className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+          title="Share response"
+        >
+          <Share2 className="size-4" />
+        </button>
+      </div>
+
+      {/* Share Dialog with Team Member Selection */}
+      <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="h-5 w-5" />
+              Share message
+            </DialogTitle>
+            <DialogDescription>
+              Select team members to share this message with
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">Share with Team Members</Label>
+              </div>
+
+              {isLoadingMembers ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : teamMembers.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No other team members found in your organization
+                </p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-2 border rounded-lg p-2">
+                  {teamMembers.map((member) => {
+                    const isSelected = selectedMembers.has(member.id);
+                    
+                    return (
+                      <div
+                        key={member.id}
+                        className={cn(
+                          "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors",
+                          isSelected ? "bg-primary/10" : "hover:bg-accent"
+                        )}
+                        onClick={() => handleToggleMember(member.id)}
+                      >
+                        <div className={cn(
+                          "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                          isSelected ? "bg-primary border-primary" : "border-muted-foreground/30"
+                        )}>
+                          {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{member.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {teamMembers.length > 0 && (
+                <Button
+                  onClick={handleShareWithSelected}
+                  disabled={selectedMembers.size === 0 || isSharing}
+                  className="w-full"
+                >
+                  {isSharing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sharing...
+                    </>
+                  ) : shareSuccess ? (
+                    <>
+                      <Check className="mr-2 h-4 w-4" />
+                      Shared!
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="mr-2 h-4 w-4" />
+                      Share with {selectedMembers.size} member{selectedMembers.size !== 1 ? 's' : ''}
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

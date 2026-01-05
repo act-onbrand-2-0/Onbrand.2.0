@@ -22,13 +22,8 @@
 [context.branch-deploy]
   environment = { NEXT_PUBLIC_SITE_URL = "" }
 
-# Redirect to the Next.js app for all subdomains
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  force = true
-  conditions = { Subdomain = "*" }
+# Note: @netlify/plugin-nextjs handles all routing automatically
+# No custom redirects needed for subdomains - Next.js middleware handles brand detection
 
 [[headers]]
   for = "/*"

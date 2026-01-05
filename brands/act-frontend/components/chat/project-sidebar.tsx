@@ -330,19 +330,19 @@ export function ProjectSidebar({
       {/* Logo Header */}
       
       {/* Action Buttons Header */}
-      <div className="flex items-center px-3 py-2">
-        <div className="flex items-center gap-1">
-          {onCollapse && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={onCollapse}
-              title="Collapse sidebar"
-            >
-              <PanelLeft className="size-4" />
-            </Button>
-          )}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-sidebar-border">
+        {onCollapse && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={onCollapse}
+            title="Close sidebar"
+          >
+            <PanelLeft className="size-4" />
+          </Button>
+        )}
+        <div className="flex items-center gap-1 ml-auto">
           <Button
             variant="ghost"
             size="icon"
@@ -352,15 +352,15 @@ export function ProjectSidebar({
           >
             <PenLine className="size-4" />
           </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          onClick={() => setShowNewProjectDialog(true)}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={() => setShowNewProjectDialog(true)}
             title="New Folder"
-        >
-          <FolderPlus className="size-4" />
-        </Button>
+          >
+            <FolderPlus className="size-4" />
+          </Button>
         </div>
       </div>
 
@@ -750,33 +750,35 @@ function ProjectItem({
     <div className="group/folder">
       <div
         className={cn(
-          'flex items-center rounded-lg transition-colors px-1',
+          'flex items-center rounded-lg transition-colors px-2 py-1',
           isSelected ? 'bg-accent' : 'hover:bg-accent/50'
         )}
       >
         {/* Expand/Collapse Button */}
         <button
-          className="p-1 hover:bg-accent/50 rounded shrink-0"
+          className="p-0.5 hover:bg-accent/50 rounded shrink-0"
           onClick={onToggle}
           title={isExpanded ? "Collapse" : "Expand"}
         >
           {isExpanded ? (
-            <ChevronDown className="h-3.5 w-3.5" />
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           )}
         </button>
 
         {/* Icon */}
-        {isExpanded ? (
-          <FolderOpen className="h-3.5 w-3.5 shrink-0" style={{ color: project.color }} />
-        ) : (
-          <Folder className="h-3.5 w-3.5 shrink-0" style={{ color: project.color }} />
-        )}
+        <div className="ml-1 shrink-0">
+          {isExpanded ? (
+            <FolderOpen className="h-4 w-4" style={{ color: project.color || '#f97316' }} />
+          ) : (
+            <Folder className="h-4 w-4" style={{ color: project.color || '#f97316' }} />
+          )}
+        </div>
         
         {/* Name - clickable and truncates */}
         <button
-          className="truncate text-left text-sm py-2 px-1 flex-1 min-w-0"
+          className="truncate text-left text-sm py-1.5 px-2 flex-1 min-w-0"
           onClick={() => {
             onSelect();
             onToggle();
@@ -785,11 +787,6 @@ function ProjectItem({
         >
           {project.name}
         </button>
-        
-        {/* Count */}
-        <span className="text-[10px] text-muted-foreground shrink-0 px-1">
-          {conversations.length}
-        </span>
         
         {/* More menu - only visible on hover */}
         <DropdownMenu>
@@ -1347,20 +1344,20 @@ function ConversationItem({
     <>
       <div
         className={cn(
-          'group/conversation relative flex items-center gap-2 rounded-lg pl-3 pr-8 py-2 text-sm transition-colors cursor-pointer',
+          'group/conversation flex items-center gap-2 rounded-lg pl-3 pr-1 py-2 text-sm transition-colors cursor-pointer min-w-0',
           isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
         )}
         onClick={onSelect}
       >
         <MessageSquare className="h-4 w-4 shrink-0 opacity-50" />
-        <span className="flex-1 truncate">{conversation.title}</span>
+        <span className="flex-1 min-w-0 break-words overflow-hidden">{conversation.title}</span>
         {isShared && (
-          <span title="Shared with team members">
-            <Users className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <span title="Shared with team members" className="shrink-0">
+            <Users className="h-3 w-3 text-muted-foreground" />
           </span>
         )}
         {!isOwner && (
-          <span className="text-[10px] text-muted-foreground">shared</span>
+          <span className="text-[10px] text-muted-foreground shrink-0">shared</span>
         )}
 
         <DropdownMenu>
@@ -1368,7 +1365,7 @@ function ConversationItem({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 shrink-0 opacity-0 group-hover/conversation:opacity-100 transition-opacity"
+              className="h-6 w-6 shrink-0 opacity-60 hover:opacity-100 transition-opacity"
               onClick={(e) => e.stopPropagation()}
             >
               <MoreHorizontal className="h-4 w-4" />

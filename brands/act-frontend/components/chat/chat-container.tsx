@@ -1,9 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { PanelLeft, Plus, Home } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
 import { ChatSidebar } from './chat-sidebar';
 import { ProjectSidebar } from './project-sidebar';
 import { ProjectDetailView } from './project-detail-view';
@@ -170,12 +167,12 @@ export function ChatContainer({
   }, [currentProjectId]);
 
   return (
-    <div className="flex h-dvh bg-background">
+    <div className="flex h-full flex-1 bg-background relative">
       {/* Sidebar - Hidden on mobile, collapsible on desktop */}
       <div 
         className={cn(
           "hidden md:flex md:flex-col md:border-r md:border-sidebar-border transition-all duration-300",
-          sidebarCollapsed ? "md:w-0 md:overflow-hidden" : "md:w-[460px]"
+          sidebarCollapsed ? "md:w-16" : "md:w-[280px]"
         )}
       >
         {hasProjects ? (
@@ -200,6 +197,8 @@ export function ChatContainer({
             onToggleVisibility={onToggleVisibility}
             onToggleProjectVisibility={onToggleProjectVisibility}
             onCollapse={() => setSidebarCollapsed(true)}
+            onExpand={() => setSidebarCollapsed(false)}
+            isCollapsed={sidebarCollapsed}
             brandName={brandName}
             userName={userName}
             userEmail={userEmail}
@@ -225,46 +224,6 @@ export function ChatContainer({
 
       {/* Main Chat Area */}
       <div className="flex flex-1 flex-col min-w-0">
-        {/* Header with toggle button - shows when sidebar is collapsed */}
-        {sidebarCollapsed && (
-          <div className="hidden md:flex items-center gap-1 absolute top-3 left-3 z-10">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              asChild
-              title="Back to Dashboard"
-            >
-              <Link href="/dashboard">
-                <Home className="size-4" />
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={() => setSidebarCollapsed(false)}
-              title="Toggle Sidebar"
-            >
-              <PanelLeft className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={() => {
-                onNewChat(undefined);
-                if (onSelectProject) {
-                  onSelectProject(null);
-                }
-              }}
-              title="New Chat"
-            >
-              <Plus className="size-4" />
-            </Button>
-          </div>
-        )}
-
         {/* Show Project Detail View when project is selected but no conversation and not creating new chat */}
         {currentProjectId && !currentConversation && !isCreatingNewChat && projects ? (
           (() => {

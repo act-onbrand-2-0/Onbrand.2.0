@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -36,6 +35,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Plus,
+  PenLine,
   MoreHorizontal,
   Trash2,
   PanelLeft,
@@ -113,6 +113,8 @@ interface ProjectSidebarProps {
   onToggleVisibility?: (id: string, visibility: 'private' | 'shared') => void;
   onToggleProjectVisibility?: (id: string, visibility: 'private' | 'shared') => void;
   onCollapse?: () => void;
+  onExpand?: () => void;
+  isCollapsed?: boolean;
   brandName?: string;
   userName?: string;
   userEmail?: string;
@@ -154,6 +156,8 @@ export function ProjectSidebar({
   onToggleVisibility,
   onToggleProjectVisibility,
   onCollapse,
+  onExpand,
+  isCollapsed = false,
   brandName,
   userName,
   userEmail,
@@ -235,22 +239,96 @@ export function ProjectSidebar({
     effectiveExpandedProjects.add(currentProjectId);
   }
 
+  // Icon-only collapsed view
+  if (isCollapsed) {
+    return (
+      <div className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground items-center py-3 gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-10"
+          onClick={onExpand}
+          title="Expand sidebar"
+        >
+          <PanelLeft className="size-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-10"
+          onClick={() => {
+            onNewChat(currentProjectId || undefined);
+            if (onExpand) onExpand();
+          }}
+          title="New Chat"
+        >
+          <PenLine className="size-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-10"
+          onClick={() => setShowNewProjectDialog(true)}
+          title="New Folder"
+        >
+          <FolderPlus className="size-5" />
+        </Button>
+        
+        {/* New Project Dialog - needed for collapsed view too */}
+        <Dialog open={showNewProjectDialog} onOpenChange={setShowNewProjectDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Folder</DialogTitle>
+              <DialogDescription>
+                Create a new folder to organize your conversations.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="collapsed-project-name">Folder Name</Label>
+                <Input
+                  id="collapsed-project-name"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="Enter folder name..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Color</Label>
+                <div className="flex flex-wrap gap-2">
+                  {PROJECT_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      className={cn(
+                        'size-6 rounded-full transition-all',
+                        selectedColor === color && 'ring-2 ring-offset-2 ring-primary'
+                      )}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setSelectedColor(color)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowNewProjectDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateProject} disabled={!newProjectName.trim() || isCreatingProject}>
+                {isCreatingProject ? 'Creating...' : 'Create Folder'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground overflow-hidden">
       {/* Logo Header */}
-      <div className="flex items-center justify-between px-3 py-3 border-b border-sidebar-border">
-        <Link href="/dashboard" className="flex items-center">
-          <Image
-            src="/images/onbrand-logo.png"
-            alt="onbrand"
-            width={140}
-            height={35}
-            priority
-            className="h-8 w-auto"
-          />
-        </Link>
-      </div>
-
+      
       {/* Action Buttons Header */}
       <div className="flex items-center px-3 py-2">
         <div className="flex items-center gap-1">
@@ -272,7 +350,7 @@ export function ProjectSidebar({
             onClick={() => onNewChat(currentProjectId || undefined)}
             title="New Chat"
           >
-            <Plus className="size-4" />
+            <PenLine className="size-4" />
           </Button>
         <Button
           variant="ghost"

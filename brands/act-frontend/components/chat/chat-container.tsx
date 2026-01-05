@@ -5,7 +5,7 @@ import { ChatSidebar } from './chat-sidebar';
 import { ProjectSidebar } from './project-sidebar';
 import { ProjectDetailView } from './project-detail-view';
 import { MessageList } from './message-list';
-import { ChatInput, type ModelId, type Attachment } from './chat-input';
+import { ChatInput, type ModelId, type Attachment, type StylePreset } from './chat-input';
 import { type MessageAttachment, type ToolInvocation } from './chat-message';
 import { SuggestedActions } from './greeting';
 import { cn } from '@/lib/utils';
@@ -76,7 +76,7 @@ interface ChatContainerProps {
   onArchiveConversation?: (id: string) => void;
   onToggleVisibility?: (id: string, visibility: 'private' | 'shared') => void;
   onToggleProjectVisibility?: (id: string, visibility: 'private' | 'shared') => void;
-  onSendMessage: (attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean }) => void;
+  onSendMessage: (attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean; mcpServerIds?: string[] }) => void;
   onStopGeneration?: () => void;
   onRegenerate?: () => void;
   onModelChange: (model: ModelId) => void;
@@ -95,6 +95,11 @@ interface ChatContainerProps {
 	onStyleChange?: (style: string) => void;
 	pendingStylePreset?: string;
 	pendingProjectId?: string | null;
+
+	// MCP server selection
+	brandId?: string;
+	selectedMcpServerIds?: string[];
+	onMcpServerSelectionChange?: (serverIds: string[]) => void;
 
   // User info
   brandName?: string;
@@ -145,6 +150,9 @@ export function ChatContainer({
 	onStyleChange,
 	pendingStylePreset,
 	pendingProjectId,
+	brandId,
+	selectedMcpServerIds,
+	onMcpServerSelectionChange,
 }: ChatContainerProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
@@ -260,6 +268,9 @@ export function ChatContainer({
 						// Style selection
 						currentConversationStylePreset={(currentConversation?.style_preset || pendingStylePreset) as 'normal' | 'learning' | 'concise' | 'explanatory' | 'formal' | null | undefined}
 						onStyleChange={onStyleChange}
+						brandId={brandId}
+						selectedMcpServerIds={selectedMcpServerIds}
+						onMcpServerSelectionChange={onMcpServerSelectionChange}
               />
             </div>
           </>

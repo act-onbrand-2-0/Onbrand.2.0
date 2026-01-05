@@ -12,7 +12,8 @@ import {
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ArrowUp, Square, Paperclip, ChevronDown, Check, X, FileText, Image as ImageIcon, Globe, Folder, MessageSquare, GraduationCap, Minimize2, BookOpen, Briefcase, Sparkles } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, ChevronDown, Check, X, FileText, Image as ImageIcon, Globe, Folder, MessageSquare, GraduationCap, Minimize2, BookOpen, Briefcase, Sparkles, Server } from 'lucide-react';
+import { MCPServerSelector } from './mcp-server-selector';
 import Image from 'next/image';
 
 // Provider Logo Components
@@ -421,7 +422,7 @@ export type StylePreset = typeof STYLE_PRESETS[number]['id'];
 interface ChatInputProps {
   input: string;
   setInput: (value: string) => void;
-	onSubmit: (attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean }) => void;
+	onSubmit: (attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean; mcpServerIds?: string[] }) => void;
   onStop?: () => void;
   isStreaming?: boolean;
   isLoading?: boolean;
@@ -440,6 +441,10 @@ interface ChatInputProps {
 	// Style selection
 	currentConversationStylePreset?: StylePreset | null;
 	onStyleChange?: (style: StylePreset) => void;
+	// MCP server selection
+	brandId?: string;
+	selectedMcpServerIds?: string[];
+	onMcpServerSelectionChange?: (serverIds: string[]) => void;
 }
 
 export function ChatInput({
@@ -462,6 +467,9 @@ export function ChatInput({
 	onClearProject,
 	currentConversationStylePreset = null,
 	onStyleChange,
+	brandId,
+	selectedMcpServerIds = [],
+	onMcpServerSelectionChange,
 }: ChatInputProps) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -664,7 +672,7 @@ export function ChatInput({
       e.preventDefault();
       setPrediction(''); // Clear prediction on submit
       if (!disabled && !isLoading && !isStreaming && (input.trim() || attachments.length > 0)) {
-				onSubmit(attachments.length > 0 ? attachments : undefined, { useWebSearch, useDeepResearch });
+				onSubmit(attachments.length > 0 ? attachments : undefined, { useWebSearch, useDeepResearch, mcpServerIds: selectedMcpServerIds });
         setAttachments([]);
         resetHeight();
       }
@@ -673,7 +681,7 @@ export function ChatInput({
 
   const handleSubmit = () => {
     if (!disabled && !isLoading && !isStreaming && (input.trim() || attachments.length > 0)) {
-			onSubmit(attachments.length > 0 ? attachments : undefined, { useWebSearch, useDeepResearch });
+			onSubmit(attachments.length > 0 ? attachments : undefined, { useWebSearch, useDeepResearch, mcpServerIds: selectedMcpServerIds });
       setAttachments([]);
       resetHeight();
     }
@@ -875,6 +883,16 @@ export function ChatInput({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+
+						{/* MCP Server Selector */}
+						{brandId && onMcpServerSelectionChange && (
+							<MCPServerSelector
+								brandId={brandId}
+								selectedServerIds={selectedMcpServerIds}
+								onSelectionChange={onMcpServerSelectionChange}
+								disabled={disabled || !isReady}
+							/>
+						)}
 
 						{/* Web Search active chip */}
 						{useWebSearch && (

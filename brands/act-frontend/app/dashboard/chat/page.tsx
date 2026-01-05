@@ -114,6 +114,9 @@ export default function ChatPage() {
   // Pending project ID for new conversations (doesn't affect UI navigation)
   const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
   
+  // MCP server selection state
+  const [selectedMcpServerIds, setSelectedMcpServerIds] = useState<string[]>([]);
+  
   // Refs for dynamic body values
   const brandIdRef = useRef(brandId);
   const conversationRef = useRef(currentConversation);
@@ -155,7 +158,7 @@ export default function ChatPage() {
   }, []);
 
   // Custom sendMessage that actually works
-  const sendMessage = useCallback(async (text: string, attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean }) => {
+  const sendMessage = useCallback(async (text: string, attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean; mcpServerIds?: string[] }) => {
     console.log('=== SENDING MESSAGE ===');
     console.log('Using model:', selectedModel);
     console.log('Attachments:', attachments?.length || 0);
@@ -251,6 +254,7 @@ export default function ChatPage() {
         attachments: processedAttachments.length > 0 ? processedAttachments : undefined,
         useWebSearch: options?.useWebSearch === true ? true : undefined,
         useDeepResearch: options?.useDeepResearch === true ? true : undefined,
+        mcpServerIds: options?.mcpServerIds && options.mcpServerIds.length > 0 ? options.mcpServerIds : undefined,
       };
       
       console.log('=== CHAT API REQUEST ===');
@@ -1117,7 +1121,7 @@ export default function ChatPage() {
   }, [projectFiles, supabase]);
 
   // Send message
-  const handleSendMessage = useCallback(async (attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean }) => {
+  const handleSendMessage = useCallback(async (attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean; mcpServerIds?: string[] }) => {
     // Allow sending if there's input text OR attachments
     const hasContent = input.trim() || (attachments && attachments.length > 0);
     
@@ -1193,7 +1197,7 @@ export default function ChatPage() {
     setInput('');
     
     sendMessage(messageText, attachments, options);
-  }, [input, brandId, userId, currentConversation, currentProjectId, sendMessage, selectedModel, supabase]);
+  }, [input, brandId, userId, currentConversation, currentProjectId, sendMessage, selectedModel, supabase, pendingProjectId, pendingStylePreset]);
 
   // Regenerate last response
   const handleRegenerate = useCallback(async () => {
@@ -1273,6 +1277,9 @@ export default function ChatPage() {
       onStyleChange={handleStyleChange}
       pendingStylePreset={pendingStylePreset}
       pendingProjectId={pendingProjectId}
+      brandId={brandId}
+      selectedMcpServerIds={selectedMcpServerIds}
+      onMcpServerSelectionChange={setSelectedMcpServerIds}
       brandName={brandName}
       currentUserId={userId}
       userName={userName}

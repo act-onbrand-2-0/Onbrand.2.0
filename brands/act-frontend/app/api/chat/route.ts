@@ -21,16 +21,24 @@ function getSupabaseClient() {
   return createClient(url, serviceKey);
 }
 
-// Fetch enabled MCP servers for a brand
-async function getMCPServers(brandId: string): Promise<MCPServerConfig[]> {
+// Fetch enabled MCP servers for a brand, optionally filtered by specific server IDs
+async function getMCPServers(brandId: string, serverIds?: string[]): Promise<MCPServerConfig[]> {
   try {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    
+    // Start building the query
+    let query = supabase
       .from('mcp_servers')
       .select('*')
       .eq('brand_id', brandId)
-      .eq('enabled', true)
-      .order('priority', { ascending: false });
+      .eq('enabled', true);
+    
+    // If specific server IDs are provided, filter by them
+    if (serverIds && serverIds.length > 0) {
+      query = query.in('id', serverIds);
+    }
+    
+    const { data, error } = await query.order('priority', { ascending: false });
 
     if (error) {
       console.error('Failed to fetch MCP servers:', error);
@@ -45,14 +53,19 @@ async function getMCPServers(brandId: string): Promise<MCPServerConfig[]> {
 }
 
 // Connect to MCP servers and get their tools
-async function getMCPTools(brandId: string): Promise<{ tools: Record<string, unknown>; cleanup: () => Promise<void> }> {
-  const servers = await getMCPServers(brandId);
+async function getMCPTools(brandId: string, serverIds?: string[]): Promise<{ tools: Record<string, unknown>; cleanup: () => Promise<void> }> {
+  const servers = await getMCPServers(brandId, serverIds);
   
   if (servers.length === 0) {
     return { tools: {}, cleanup: async () => {} };
   }
 
   console.log(`Found ${servers.length} MCP servers for brand ${brandId}`);
+  
+  // Debug: Log server auth info (without exposing actual tokens)
+  servers.forEach(s => {
+    console.log(`MCP Server ${s.name}: auth_type=${s.auth_type}, has_token=${!!s.auth_token_encrypted}, token_length=${s.auth_token_encrypted?.length || 0}`);
+  });
 
   // Dynamically import MCP manager to prevent build-time bundling
   const { createMCPManager } = await import('@/lib/mcp/client-manager-loader');
@@ -195,7 +208,8 @@ export async function POST(req: NextRequest) {
       systemPrompt,
       attachments = [] as ProcessedAttachment[],
       useWebSearch = false,
-      useDeepResearch = false
+      useDeepResearch = false,
+      mcpServerIds = [] as string[]
     } = body;
 
     // Log for debugging - full body
@@ -445,8 +459,11 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
     console.log('Normalized messages (first 1000 chars):', JSON.stringify(normalizedMessages, null, 2).slice(0, 1000));
     console.log('=== END DEBUG ===');
 
-    // Get MCP tools for this brand
-    const { tools: mcpTools, cleanup: cleanupMCP } = await getMCPTools(brandId);
+    // Get MCP tools for this brand (filtered by selected server IDs if provided)
+    const { tools: mcpTools, cleanup: cleanupMCP } = await getMCPTools(
+      brandId, 
+      mcpServerIds.length > 0 ? mcpServerIds : undefined
+    );
     const hasMCPTools = Object.keys(mcpTools).length > 0;
 
     if (hasMCPTools) {

@@ -145,6 +145,8 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
+  const [isDeepResearchActive, setIsDeepResearchActive] = useState(false);
+  const [pendingAutoSend, setPendingAutoSend] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const stop = useCallback(() => {
@@ -153,7 +155,7 @@ export default function ChatPage() {
   }, []);
 
   // Custom sendMessage that actually works
-  const sendMessage = useCallback(async (text: string, attachments?: Attachment[], options?: { useWebSearch?: boolean }) => {
+  const sendMessage = useCallback(async (text: string, attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean }) => {
     console.log('=== SENDING MESSAGE ===');
     console.log('Using model:', selectedModel);
     console.log('Attachments:', attachments?.length || 0);
@@ -188,6 +190,7 @@ export default function ChatPage() {
     setAiMessages(prev => [...prev, userMsg]);
     setStreamingContent('');
     setIsStreaming(true);
+    setIsDeepResearchActive(options?.useDeepResearch === true);
     
     try {
       abortControllerRef.current = new AbortController();
@@ -247,6 +250,7 @@ export default function ChatPage() {
         systemPrompt: conversationRef.current?.system_prompt,
         attachments: processedAttachments.length > 0 ? processedAttachments : undefined,
         useWebSearch: options?.useWebSearch === true ? true : undefined,
+        useDeepResearch: options?.useDeepResearch === true ? true : undefined,
       };
       
       console.log('=== CHAT API REQUEST ===');
@@ -359,6 +363,7 @@ export default function ChatPage() {
     } finally {
       setIsStreaming(false);
       setStreamingContent('');
+      setIsDeepResearchActive(false);
     }
   }, [aiMessages, selectedModel, supabase]);
 
@@ -650,17 +655,22 @@ export default function ChatPage() {
   };
 
   // Create new conversation - clears current chat and shows empty state
-  const handleNewChat = useCallback((projectId?: string) => {
-    console.log('New Chat clicked - clearing state, projectId:', projectId);
+  const handleNewChat = useCallback((projectId?: string, initialMessage?: string) => {
+    console.log('New Chat clicked - clearing state, projectId:', projectId, 'initialMessage:', initialMessage);
     setCurrentConversation(null);
     setDbMessages([]);
     setAiMessages([]);
-    setInput(''); // Clear input field
     setPendingStylePreset('normal'); // Reset pending style to normal
     setPendingProjectId(null); // Reset pending project
     // If projectId provided, set it as current project
     if (projectId) {
       setCurrentProjectId(projectId);
+    }
+    // Set initial message if provided, otherwise clear input
+    setInput(initialMessage || '');
+    // If there's an initial message, trigger auto-send
+    if (initialMessage?.trim()) {
+      setPendingAutoSend(initialMessage.trim());
     }
   }, [setAiMessages, setInput]);
 
@@ -1107,7 +1117,7 @@ export default function ChatPage() {
   }, [projectFiles, supabase]);
 
   // Send message
-  const handleSendMessage = useCallback(async (attachments?: Attachment[], options?: { useWebSearch?: boolean }) => {
+  const handleSendMessage = useCallback(async (attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean }) => {
     // Allow sending if there's input text OR attachments
     const hasContent = input.trim() || (attachments && attachments.length > 0);
     
@@ -1196,6 +1206,20 @@ export default function ChatPage() {
     }
   }, [dbMessages, currentConversation]);
 
+  // Auto-send message when pendingAutoSend has a message (from project view)
+  useEffect(() => {
+    if (pendingAutoSend && brandId && userId && !isStreaming) {
+      console.log('Auto-sending message from project view:', pendingAutoSend);
+      const messageToSend = pendingAutoSend;
+      setPendingAutoSend(null);
+      // Small delay to ensure state is settled, then call sendMessage directly
+      const timer = setTimeout(() => {
+        sendMessage(messageToSend);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingAutoSend, brandId, userId, isStreaming, sendMessage]);
+
   // Messages are already in the correct format - include attachments for display
   const displayMessages = aiMessages.map(m => ({
     id: m.id,
@@ -1206,7 +1230,7 @@ export default function ChatPage() {
 
   if (!userId || !brandId) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>
     );
@@ -1221,6 +1245,7 @@ export default function ChatPage() {
       isStreaming={isStreaming}
       streamingContent={streamingContent}
       activeToolCall={activeToolCall}
+      isDeepResearchActive={isDeepResearchActive}
       input={input}
       selectedModel={selectedModel}
       projects={projects}

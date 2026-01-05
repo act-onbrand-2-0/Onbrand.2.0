@@ -1,10 +1,9 @@
-import { streamText, stepCountIs, tool } from "ai";
+import { streamText, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { google } from "@ai-sdk/google";
 import { type NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { z } from 'zod';
 // MCP imports are conditionally loaded to prevent build errors
 import type { MCPServerConfig, MCPConnectionStatus } from '@/lib/mcp/types';
 
@@ -195,7 +194,8 @@ export async function POST(req: NextRequest) {
       messages = [],
       systemPrompt,
       attachments = [] as ProcessedAttachment[],
-      useWebSearch = false
+      useWebSearch = false,
+      useDeepResearch = false
     } = body;
 
     // Log for debugging - full body
@@ -466,48 +466,63 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
         temperature: 0.7,
       };
 
+      // Optional Deep Research / Extended Thinking mode
+      if (useDeepResearch) {
+        const modelConfig = MODELS[model as ModelKey] || MODELS['claude-4.5'];
+        
+        if (modelConfig.provider === 'anthropic') {
+          // Claude's extended thinking with interleaved tool use
+          streamOptions.providerOptions = {
+            anthropic: {
+              thinking: { type: 'enabled', budgetTokens: 15000 },
+            },
+          };
+          streamOptions.headers = {
+            'anthropic-beta': 'interleaved-thinking-2025-05-14',
+          };
+          streamOptions.maxOutputTokens = 16000; // Increase for reasoning + response
+          console.log('Deep research enabled via Claude extended thinking');
+        } else if (modelConfig.provider === 'google') {
+          // Gemini's thinking mode
+          streamOptions.providerOptions = {
+            google: {
+              thinkingConfig: {
+                includeThoughts: true,
+                thinkingLevel: 'high',
+              },
+            },
+          };
+          streamOptions.maxOutputTokens = 16000;
+          console.log('Deep research enabled via Gemini thinking mode');
+        } else if (modelConfig.provider === 'openai') {
+          // OpenAI doesn't have extended thinking in the same way
+          // Use higher temperature and more verbose system prompt instead
+          streamOptions.temperature = 0.8;
+          streamOptions.maxOutputTokens = 8000;
+          streamOptions.system = `${finalSystemPrompt}\n\nIMPORTANT: You are in deep research mode. Think through problems step-by-step, consider multiple perspectives, and provide comprehensive, well-reasoned answers. Break down complex topics and explore implications thoroughly.`;
+          console.log('Deep research enabled via enhanced prompting for OpenAI');
+        }
+      }
+
       // Build tools map
       const tools: Record<string, unknown> = { ...(hasMCPTools ? mcpTools : {}) };
 
-      // Optional Web Search tool via Tavily
+      // Optional Web Search via native provider tools (OpenAI and Gemini only)
       if (useWebSearch) {
-        const tavilyKey = process.env.TAVILY_API_KEY;
-        if (!tavilyKey) {
-          console.warn('TAVILY_API_KEY not set; web search disabled');
-        } else {
-          const webSearch = tool({
-            description: 'Search the web and return top results',
-            inputSchema: z.object({
-              query: z.string().describe('Search query'),
-              maxResults: z.number().min(1).max(10).default(5),
-            }),
-            execute: async ({ query, maxResults }) => {
-              const res = await fetch('https://api.tavily.com/search', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  api_key: tavilyKey,
-                  query,
-                  max_results: maxResults,
-                  include_answer: true,
-                  search_depth: 'basic',
-                }),
-              });
-              const data = await res.json();
-              const results = (data?.results || []).map((r: any) => ({
-                title: r.title,
-                url: r.url,
-                snippet: r.content,
-              }));
-              return {
-                answer: data?.answer || null,
-                results,
-              };
-            },
+        const modelConfig = MODELS[model as ModelKey] || MODELS['claude-4.5'];
+        if (modelConfig.provider === 'openai') {
+          // OpenAI's native web search tool
+          tools.web_search = openai.tools.webSearch({
+            searchContextSize: 'high',
           });
-          tools.webSearch = webSearch;
+          console.log('Web search enabled via OpenAI built-in tool');
+        } else if (modelConfig.provider === 'google') {
+          // Gemini's native Google Search grounding
+          tools.google_search = google.tools.googleSearch({});
+          console.log('Web search enabled via Gemini Google Search grounding');
+        } else {
+          // Claude doesn't have native web search
+          console.warn(`Web search requested but model provider is ${modelConfig.provider}. Web search only available with OpenAI and Gemini models.`);
         }
       }
 

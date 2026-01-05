@@ -47,6 +47,7 @@ interface Conversation {
   last_message_preview?: string;
   visibility?: 'private' | 'shared' | null;
   user_id?: string;
+  style_preset?: string | null;
 }
 
 interface ChatContainerProps {
@@ -59,6 +60,7 @@ interface ChatContainerProps {
   input: string;
   streamingContent?: string;
   activeToolCall?: string | null;
+  isDeepResearchActive?: boolean;
   selectedModel: ModelId;
 
   // Project state (optional)
@@ -68,18 +70,13 @@ interface ChatContainerProps {
 
   // Actions
   setInput: (value: string) => void;
-  onNewChat: (projectId?: string) => void;
+  onNewChat: (projectId?: string, initialMessage?: string) => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
   onArchiveConversation?: (id: string) => void;
   onToggleVisibility?: (id: string, visibility: 'private' | 'shared') => void;
   onToggleProjectVisibility?: (id: string, visibility: 'private' | 'shared') => void;
-  onSendMessage: (attachments?: Attachment[]) => void;
-	// Extended: allow passing options like web search toggle
-	// Keeping backwards compatibility by making it optional
-	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-	// @ts-ignore
-	onSendMessage: (attachments?: Attachment[], options?: { useWebSearch?: boolean }) => void;
+  onSendMessage: (attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean }) => void;
   onStopGeneration?: () => void;
   onRegenerate?: () => void;
   onModelChange: (model: ModelId) => void;
@@ -116,6 +113,7 @@ export function ChatContainer({
   input,
   streamingContent,
   activeToolCall,
+  isDeepResearchActive,
   selectedModel,
   projects,
   projectFiles,
@@ -168,10 +166,109 @@ export function ChatContainer({
 
   return (
     <div className="flex h-full flex-1 bg-background relative">
-      {/* Sidebar - Hidden on mobile, collapsible on desktop */}
+      {/* Main Chat Area */}
+      <div className="flex flex-1 flex-col min-w-0">
+        {/* Show Project Detail View when project is selected but no conversation and not creating new chat */}
+        {currentProjectId && !currentConversation && !isCreatingNewChat && projects ? (
+          (() => {
+            const currentProject = projects.find(p => p.id === currentProjectId);
+            if (currentProject) {
+              return (
+                <ProjectDetailView
+                  project={currentProject}
+                  conversations={conversations}
+                  files={projectFiles?.[currentProjectId] || []}
+                  currentConversationId={undefined}
+                  onNewChat={(initialMessage) => {
+                    setIsCreatingNewChat(true);
+                    onNewChat(currentProjectId || undefined, initialMessage);
+                  }}
+                  onSelectConversation={onSelectConversation}
+                  onUploadFile={onUploadFile ? (file) => onUploadFile(currentProjectId, file) : undefined}
+                  onDeleteFile={onDeleteFile}
+                />
+              );
+            }
+            return null;
+          })()
+        ) : (
+          <>
+            {/* Project Context Indicator */}
+            {currentProjectId && projects && (() => {
+              const project = projects.find(p => p.id === currentProjectId);
+              if (project) {
+                return (
+                  <div className="mx-auto flex w-full max-w-3xl px-4 pt-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div 
+                        className="size-4 rounded flex items-center justify-center"
+                        style={{ backgroundColor: project.color + '20' }}
+                      >
+                        <svg className="size-2.5" style={{ color: project.color }} fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                        </svg>
+                      </div>
+                      <span>Chatting in <span className="font-medium text-foreground">{project.name}</span></span>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* Messages */}
+            <MessageList
+              messages={messages}
+              isLoading={isLoading}
+              isStreaming={isStreaming}
+              streamingContent={streamingContent}
+              activeToolCall={activeToolCall}
+              isDeepResearchActive={isDeepResearchActive}
+            />
+
+            {/* Suggested Actions - Show when no messages and input is empty */}
+            {messages.length === 0 && !input.trim() && (
+              <SuggestedActions 
+                onSelect={(text) => {
+                  setInput(text);
+                }} 
+                jobFunction={jobFunction}
+              />
+            )}
+
+            {/* Input - Fixed at bottom */}
+            <div className="mx-auto flex w-full max-w-3xl px-4 pb-4">
+              <ChatInput
+                input={input}
+                setInput={setInput}
+								onSubmit={onSendMessage}
+                onStop={onStopGeneration}
+                isStreaming={isStreaming}
+                isLoading={isLoading}
+                placeholder="Send a message..."
+                model={selectedModel}
+                onModelChange={onModelChange}
+								// New: project actions in + menu
+								projects={projects?.map(p => ({ id: p.id, name: p.name })) || []}
+								currentProjectId={currentProjectId || null}
+								currentConversationProjectId={currentConversation?.project_id || pendingProjectId || null}
+								onSelectProject={onSelectProject}
+								onCreateProject={onCreateProject}
+						onMoveConversationToProject={onMoveConversationToProject}
+						onClearProject={onClearProject}
+						// Style selection
+						currentConversationStylePreset={(currentConversation?.style_preset || pendingStylePreset) as 'normal' | 'learning' | 'concise' | 'explanatory' | 'formal' | null | undefined}
+						onStyleChange={onStyleChange}
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Sidebar - Hidden on mobile, collapsible on desktop - RIGHT SIDE */}
       <div 
         className={cn(
-          "hidden md:flex md:flex-col md:border-r md:border-sidebar-border transition-all duration-300",
+          "hidden md:flex md:flex-col md:border-l md:border-sidebar-border transition-all duration-300",
           sidebarCollapsed ? "md:w-16" : "md:w-[280px]"
         )}
       >
@@ -219,84 +316,6 @@ export function ChatContainer({
             userName={userName}
             userEmail={userEmail}
           />
-        )}
-      </div>
-
-      {/* Main Chat Area */}
-      <div className="flex flex-1 flex-col min-w-0">
-        {/* Show Project Detail View when project is selected but no conversation and not creating new chat */}
-        {currentProjectId && !currentConversation && !isCreatingNewChat && projects ? (
-          (() => {
-            const currentProject = projects.find(p => p.id === currentProjectId);
-            if (currentProject) {
-              return (
-                <ProjectDetailView
-                  project={currentProject}
-                  conversations={conversations}
-                  files={projectFiles?.[currentProjectId] || []}
-                  currentConversationId={undefined}
-                  onNewChat={(initialMessage) => {
-                    setIsCreatingNewChat(true);
-                    onNewChat(currentProjectId);
-                    if (initialMessage) {
-                      setInput(initialMessage);
-                    }
-                  }}
-                  onSelectConversation={onSelectConversation}
-                  onUploadFile={onUploadFile ? (file) => onUploadFile(currentProjectId, file) : undefined}
-                  onDeleteFile={onDeleteFile}
-                />
-              );
-            }
-            return null;
-          })()
-        ) : (
-          <>
-            {/* Messages */}
-            <MessageList
-              messages={messages}
-              isLoading={isLoading}
-              isStreaming={isStreaming}
-              streamingContent={streamingContent}
-              activeToolCall={activeToolCall}
-            />
-
-            {/* Suggested Actions - Show when no messages and input is empty */}
-            {messages.length === 0 && !input.trim() && (
-              <SuggestedActions 
-                onSelect={(text) => {
-                  setInput(text);
-                }} 
-                jobFunction={jobFunction}
-              />
-            )}
-
-            {/* Input - Fixed at bottom */}
-            <div className="mx-auto flex w-full max-w-3xl px-4 pb-4">
-              <ChatInput
-                input={input}
-                setInput={setInput}
-								onSubmit={onSendMessage}
-                onStop={onStopGeneration}
-                isStreaming={isStreaming}
-                isLoading={isLoading}
-                placeholder="Send a message..."
-                model={selectedModel}
-                onModelChange={onModelChange}
-								// New: project actions in + menu
-								projects={projects?.map(p => ({ id: p.id, name: p.name })) || []}
-								currentProjectId={currentProjectId || null}
-								currentConversationProjectId={currentConversation?.project_id || pendingProjectId || null}
-								onSelectProject={onSelectProject}
-								onCreateProject={onCreateProject}
-						onMoveConversationToProject={onMoveConversationToProject}
-						onClearProject={onClearProject}
-						// Style selection
-						currentConversationStylePreset={(currentConversation?.style_preset || pendingStylePreset) as any}
-						onStyleChange={onStyleChange}
-              />
-            </div>
-          </>
         )}
       </div>
     </div>

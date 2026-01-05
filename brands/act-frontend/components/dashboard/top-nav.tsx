@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   NavigationMenu,
@@ -77,14 +76,7 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
       <div className="relative flex h-16 items-center px-4 md:px-6">
         {/* Logo - Left aligned */}
         <Link href="/dashboard" className="flex items-center">
-          <Image
-            src="/images/onbrand-logo.png"
-            alt="onbrand"
-            width={180}
-            height={45}
-            priority
-            className="h-10 w-auto"
-          />
+          <span className="font-semibold text-xl">ACT.onbrand</span>
         </Link>
 
         {/* Navigation - Centered */}

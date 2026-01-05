@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { ArrowDown, Wrench, Loader2 } from 'lucide-react';
+import { ArrowDown, Wrench, Loader2, Sparkles } from 'lucide-react';
 import { ChatMessage, ThinkingMessage, type MessageAttachment, type ToolInvocation } from './chat-message';
 import { Greeting } from './greeting';
 
@@ -19,6 +19,7 @@ interface MessageListProps {
   isStreaming?: boolean;
   streamingContent?: string;
   activeToolCall?: string | null;
+  isDeepResearchActive?: boolean;
 }
 
 export function MessageList({
@@ -27,6 +28,7 @@ export function MessageList({
   isStreaming = false,
   streamingContent,
   activeToolCall,
+  isDeepResearchActive = false,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -88,6 +90,14 @@ export function MessageList({
 
           {/* Show loading indicator when waiting for response or while streaming */}
           {((isLoading && !isStreaming) || (isStreaming && !streamingContent) || (isStreaming && streamingContent)) && <ThinkingMessage />}
+
+          {/* Deep Research Active Indicator */}
+          {isDeepResearchActive && isStreaming && (
+            <div className="flex items-center gap-2 px-3 py-2 mx-auto max-w-fit rounded-lg bg-purple-500/10 border border-purple-500/20 text-sm text-purple-600 dark:text-purple-400 animate-pulse">
+              <Sparkles className="size-4" />
+              <span>Deep Research mode enabled — thinking deeply...</span>
+            </div>
+          )}
 
           {/* Active Tool Call Indicator */}
           {activeToolCall && (

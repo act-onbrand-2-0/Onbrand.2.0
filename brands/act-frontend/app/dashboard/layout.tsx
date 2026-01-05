@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { DashboardSidebar } from '@/components/dashboard-new/sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function DashboardLayout({
   children,
@@ -73,9 +72,6 @@ export default function DashboardLayout({
     <SidebarProvider className="bg-sidebar">
       <DashboardSidebar userName={userName} userEmail={user?.email || ''} />
       <div className="h-svh overflow-hidden lg:p-2 w-full relative">
-        <div className="absolute top-4 right-4 z-20 lg:top-6 lg:right-6">
-          <ThemeToggle />
-        </div>
         <div className="lg:border lg:rounded-md overflow-hidden flex flex-col h-full w-full bg-background">
           <div className="flex-1 overflow-hidden">
             {children}

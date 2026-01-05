@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { FolderOpen, Plus, Mic, SlidersHorizontal, File, Upload, X, Loader2, ChevronRight, FileText } from 'lucide-react';
+import { FolderOpen, Plus, File, Upload, X, Loader2, ChevronRight, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -136,27 +136,9 @@ export function ProjectDetailView({
               type="text"
               value={newChatInput}
               onChange={(e) => setNewChatInput(e.target.value)}
-              placeholder={`New chat in ${project.name}`}
+              placeholder="Start a conversation..."
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-              >
-                <Mic className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-              </Button>
-            </div>
           </div>
         </form>
       </div>
@@ -171,14 +153,31 @@ export function ProjectDetailView({
             >
               <FolderOpen className="h-6 w-6" style={{ color: project.color }} />
             </div>
-            <h3 className="text-lg font-medium mb-1">No chats yet</h3>
+            <h3 className="text-lg font-medium mb-1">No chats in {project.name}</h3>
             <p className="text-sm text-muted-foreground mb-4">
               Start a new chat to begin working on this project
             </p>
-            <Button onClick={() => onNewChat()} className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Chat
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => onNewChat()} className="gap-2">
+                <Plus className="h-4 w-4" />
+                New Chat in {project.name}
+              </Button>
+              {onUploadFile && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="gap-2"
+                >
+                  {isUploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  Add Context Files
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="space-y-1">
@@ -210,7 +209,7 @@ export function ProjectDetailView({
         )}
 
         {/* Context Files - Collapsible Section */}
-        {files.length > 0 && (
+        {(files.length > 0 || onUploadFile) && (
           <div className="mt-6 border-t border-border pt-4">
             <button
               onClick={() => setShowFiles(!showFiles)}
@@ -229,6 +228,9 @@ export function ProjectDetailView({
 
             {showFiles && (
               <div className="mt-2 ml-6 space-y-1">
+                {files.length === 0 && (
+                  <p className="text-xs text-muted-foreground px-3 py-2">No files added yet</p>
+                )}
                 {files.map((file) => (
                   <div
                     key={file.id}

@@ -421,7 +421,7 @@ export type StylePreset = typeof STYLE_PRESETS[number]['id'];
 interface ChatInputProps {
   input: string;
   setInput: (value: string) => void;
-	onSubmit: (attachments?: Attachment[], options?: { useWebSearch?: boolean }) => void;
+	onSubmit: (attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean }) => void;
   onStop?: () => void;
   isStreaming?: boolean;
   isLoading?: boolean;
@@ -467,6 +467,7 @@ export function ChatInput({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [prediction, setPrediction] = useState<string>('');
 	const [useWebSearch, setUseWebSearch] = useState<boolean>(false);
+	const [useDeepResearch, setUseDeepResearch] = useState<boolean>(false);
   const selectedModel = AI_MODELS.find(m => m.id === model) || AI_MODELS[0];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -653,7 +654,7 @@ export function ChatInput({
       e.preventDefault();
       setPrediction(''); // Clear prediction on submit
       if (!disabled && !isLoading && !isStreaming && (input.trim() || attachments.length > 0)) {
-				onSubmit(attachments.length > 0 ? attachments : undefined, { useWebSearch });
+				onSubmit(attachments.length > 0 ? attachments : undefined, { useWebSearch, useDeepResearch });
         setAttachments([]);
         resetHeight();
       }
@@ -662,7 +663,7 @@ export function ChatInput({
 
   const handleSubmit = () => {
     if (!disabled && !isLoading && !isStreaming && (input.trim() || attachments.length > 0)) {
-			onSubmit(attachments.length > 0 ? attachments : undefined, { useWebSearch });
+			onSubmit(attachments.length > 0 ? attachments : undefined, { useWebSearch, useDeepResearch });
       setAttachments([]);
       resetHeight();
     }
@@ -875,6 +876,13 @@ export function ChatInput({
 									<span>Web Search</span>
 									{useWebSearch ? <Check className="size-4" /> : null}
 								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={() => setUseDeepResearch(prev => !prev)}
+									className="flex items-center justify-between gap-2"
+								>
+									<span>Deep Research</span>
+									{useDeepResearch ? <Check className="size-4" /> : null}
+								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>
 
@@ -934,6 +942,17 @@ export function ChatInput({
 							>
 								<Globe className="size-3" />
 								<span>Web Search on</span>
+								<X className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+							</button>
+						)}
+						{/* Deep Research active chip */}
+						{useDeepResearch && (
+							<button
+								onClick={() => setUseDeepResearch(false)}
+								className="group ml-1 inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-foreground hover:bg-muted/80 transition-colors"
+							>
+								<Sparkles className="size-3" />
+								<span>Deep Research on</span>
 								<X className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
 							</button>
 						)}

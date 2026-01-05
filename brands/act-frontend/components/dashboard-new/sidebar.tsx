@@ -42,7 +42,12 @@ import {
   UserCircle,
   CreditCard,
   PanelLeft,
+  Sun,
+  Moon,
+  Check,
+  Plus,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 
 const menuItems = [
   {
@@ -68,32 +73,91 @@ const folders = [
   { name: "Nova Redesign", hasNotification: true },
 ];
 
+// Placeholder brands for UI - feature not built yet
+const placeholderBrands = [
+  { id: '1', name: 'ACT.onbrand', initials: 'AO', color: 'bg-primary' },
+  { id: '2', name: 'Oddido', initials: 'OD', color: 'bg-blue-500' },
+  { id: '3', name: 'Zwinc', initials: 'ZW', color: 'bg-orange-500' },
+];
+
 interface DashboardSidebarProps extends React.ComponentProps<typeof Sidebar> {
   userName: string;
   userEmail: string;
+  brandName?: string;
 }
 
 export function DashboardSidebar({
   userName,
   userEmail,
+  brandName = 'ACT.onbrand',
   ...props
 }: DashboardSidebarProps) {
   const [foldersOpen, setFoldersOpen] = React.useState(true);
   const pathname = usePathname();
   const { toggleSidebar, state } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const { setTheme, theme } = useTheme();
+  const isDark = theme === "dark";
+  
+  // Get current brand info (use brandName prop or default)
+  const currentBrand = placeholderBrands.find(b => b.name === brandName) || placeholderBrands[0];
 
   return (
     <Sidebar collapsible="icon" className="lg:border-r-0! transition-all duration-200" {...props}>
       {!isCollapsed && (
         <SidebarHeader className="p-3 sm:p-4 lg:p-5 pb-0">
-          <button 
-            onClick={toggleSidebar}
-            className="flex items-center gap-2 hover:opacity-70 transition-opacity cursor-pointer"
-            title="Collapse sidebar"
-          >
-            <span className="font-semibold text-base sm:text-lg">ACT.onbrand</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button 
+                  className="flex items-center gap-2 hover:bg-accent rounded-md px-2 py-1.5 -ml-2 transition-colors cursor-pointer"
+                  title="Switch brand"
+                >
+                  <div className={`size-6 rounded-md ${currentBrand.color} flex items-center justify-center text-white text-xs font-semibold`}>
+                    {currentBrand.initials}
+                  </div>
+                  <span className="font-semibold text-base sm:text-lg">{brandName}</span>
+                  <ChevronsUpDown className="size-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[220px]">
+                {placeholderBrands.map((brand) => (
+                  <DropdownMenuItem 
+                    key={brand.id}
+                    className="flex items-center gap-2 cursor-pointer"
+                    onClick={() => {
+                      // TODO: Implement brand switching
+                      console.log('Switch to brand:', brand.name);
+                    }}
+                  >
+                    <div className={`size-6 rounded-md ${brand.color} flex items-center justify-center text-white text-xs font-semibold`}>
+                      {brand.initials}
+                    </div>
+                    <span className="flex-1">{brand.name}</span>
+                    {brand.name === brandName && <Check className="size-4" />}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    // TODO: Implement add new brand
+                    console.log('Add new brand');
+                  }}
+                >
+                  <Plus className="size-4" />
+                  <span>Add new brand</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button 
+              onClick={toggleSidebar}
+              className="ml-auto p-1 hover:bg-accent rounded transition-colors"
+              title="Collapse sidebar"
+            >
+              <PanelLeft className="size-4 text-muted-foreground" />
+            </button>
+          </div>
         </SidebarHeader>
       )}
 
@@ -158,6 +222,16 @@ export function DashboardSidebar({
                 <Settings className="size-5" />
                 {!isCollapsed && <span className="text-sm">Settings</span>}
               </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem className={isCollapsed ? "w-auto" : ""}>
+            <SidebarMenuButton 
+              className={isCollapsed ? "h-10 w-10 !p-0" : "h-9 sm:h-[38px]"}
+              tooltip={isDark ? "Light Mode" : "Dark Mode"}
+              onClick={() => setTheme(isDark ? "light" : "dark")}
+            >
+              {isDark ? <Sun className="size-5" /> : <Moon className="size-5" />}
+              {!isCollapsed && <span className="text-sm">{isDark ? "Light Mode" : "Dark Mode"}</span>}
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

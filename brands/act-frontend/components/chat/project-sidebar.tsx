@@ -100,7 +100,7 @@ interface ProjectSidebarProps {
   currentConversationId?: string;
   currentUserId?: string;
   isLoading?: boolean;
-  onNewChat: (projectId?: string) => void;
+  onNewChat: (projectId?: string, initialMessage?: string) => void;
   onNewProject: (name: string, color?: string) => Promise<string | undefined>; // Returns project ID
   onSelectProject: (projectId: string | null) => void;
   onSelectConversation: (id: string) => void;
@@ -777,7 +777,10 @@ function ProjectItem({
         {/* Name - clickable and truncates */}
         <button
           className="truncate text-left text-sm py-2 px-1 flex-1 min-w-0"
-          onClick={onSelect}
+          onClick={() => {
+            onSelect();
+            onToggle();
+          }}
           title={project.name}
         >
           {project.name}
@@ -889,59 +892,13 @@ function ProjectItem({
       {/* Empty State */}
       {isExpanded && conversations.length === 0 && files.length === 0 && (
         <div className="ml-6 py-2 text-xs text-muted-foreground">
-          No chats yet.{' '}
+          No chats in {project.name}.{' '}
           <button className="underline hover:no-underline" onClick={onNewChat}>
             Start one
           </button>
         </div>
       )}
 
-      {/* Project Files Section */}
-      {isExpanded && files.length > 0 && (
-        <div className="ml-6 mt-2">
-          {/* Header */}
-          <div className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-1">
-            <FileText className="h-3 w-3" />
-            Context Files
-          </div>
-
-          {/* File list */}
-          <div className="space-y-1">
-            {files.map((file) => (
-              <div
-                key={file.id}
-                className="group/file flex items-center gap-2 rounded-md px-2 py-1.5 text-xs bg-muted/30 hover:bg-muted/50"
-              >
-                <File className="h-3 w-3 shrink-0 text-muted-foreground" />
-                <span className="flex-1 truncate" title={file.name}>
-                  {file.name}
-                </span>
-                <span className="text-muted-foreground/60 shrink-0 text-[10px]">
-                  {formatFileSize(file.file_size)}
-                </span>
-                {file.status === 'processing' && (
-                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                )}
-                {file.status === 'error' && (
-                  <span className="text-destructive text-[10px]">!</span>
-                )}
-                {onDeleteFile && (
-                  <button
-                    className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover/file:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteFile(file.id);
-                    }}
-                    title="Remove file"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Rename Dialog */}
       <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>

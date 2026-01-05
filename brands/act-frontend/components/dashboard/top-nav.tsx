@@ -99,7 +99,7 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
                             pathname === item.href && "bg-accent"
                           )}
                         >
-                          <item.icon className="h-4 w-4 text-[#889def]" />
+                          <item.icon className="h-4 w-4 text-[#063EF8]" />
                           <span>{item.title}</span>
                         </Link>
                       </NavigationMenuLink>
@@ -149,7 +149,7 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
               <Button variant="ghost" className="flex items-center gap-2 px-2">
                 <Avatar className="h-8 w-8">
                   {user?.avatar && <AvatarImage src={user.avatar} />}
-                  <AvatarFallback className="bg-[#889def] text-white text-xs">
+                  <AvatarFallback className="bg-[#063EF8] text-white text-xs">
                     {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>

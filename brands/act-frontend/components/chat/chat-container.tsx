@@ -146,7 +146,7 @@ export function ChatContainer({
 	pendingStylePreset,
 	pendingProjectId,
 }: ChatContainerProps) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
 
   // Check if projects feature is enabled
@@ -224,6 +224,7 @@ export function ChatContainer({
               streamingContent={streamingContent}
               activeToolCall={activeToolCall}
               isDeepResearchActive={isDeepResearchActive}
+              userName={userName}
             />
 
             {/* Suggested Actions - Show when no messages and input is empty */}
@@ -236,8 +237,8 @@ export function ChatContainer({
               />
             )}
 
-            {/* Input - Fixed at bottom */}
-            <div className="mx-auto flex w-full max-w-3xl px-4 pb-4">
+            {/* Input - Fixed at bottom with more spacing */}
+            <div className="mx-auto flex w-full max-w-3xl px-4 pb-8">
               <ChatInput
                 input={input}
                 setInput={setInput}

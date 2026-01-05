@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Sparkles, FileText, Copy, Check, Wrench, Loader2, CheckCircle } from 'lucide-react';
+import { Sparkles, FileText, Copy, Check, Wrench, Loader2, CheckCircle, Share2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useState, useCallback, ReactNode, useEffect, useRef } from 'react';
@@ -174,6 +174,60 @@ function ToolCallDisplay({ invocation }: { invocation: ToolInvocation }) {
   );
 }
 
+// Message action buttons (copy and share) for assistant messages
+function MessageActions({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }, [content]);
+
+  const handleShare = useCallback(async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Chat Response',
+          text: content,
+        });
+      } else {
+        // Fallback for desktop: open email or show share options
+        const shareUrl = `mailto:?subject=Shared Chat Response&body=${encodeURIComponent(content)}`;
+        window.open(shareUrl, '_blank');
+      }
+    } catch (err) {
+      // User cancelled share or error occurred
+      if ((err as Error).name !== 'AbortError') {
+        console.log('Share failed:', err);
+      }
+    }
+  }, [content]);
+
+  return (
+    <div className="flex items-center gap-1 mt-2">
+      <button
+        onClick={handleCopy}
+        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+        title="Copy response"
+      >
+        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+      </button>
+      <button
+        onClick={handleShare}
+        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+        title="Share response"
+      >
+        <Share2 className="size-4" />
+      </button>
+    </div>
+  );
+}
+
 interface ChatMessageProps {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -271,7 +325,7 @@ export function ChatMessage({
                 'w-fit break-words rounded-2xl px-3 py-2 text-white': isUser,
                 'bg-transparent px-0 py-0 text-left max-w-none': !isUser,
               })}
-              style={isUser ? { backgroundColor: '#889def' } : undefined}
+              style={isUser ? { backgroundColor: '#063EF8' } : undefined}
             >
               {isUser ? (
                 <div className="whitespace-pre-wrap break-words text-sm">
@@ -375,6 +429,11 @@ export function ChatMessage({
                 </div>
               )}
             </div>
+          )}
+
+          {/* Action buttons for assistant messages */}
+          {!isUser && content && !isStreaming && (
+            <MessageActions content={content} />
           )}
         </div>
       </div>

@@ -130,7 +130,7 @@ export function DashboardSidebar({
     <Sidebar collapsible="offcanvas" className="lg:border-r-0!" {...props}>
       <SidebarHeader className="p-3 sm:p-4 lg:p-5 pb-0">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="flex size-6 items-center justify-center rounded bg-[#889def] text-white">
+          <div className="flex size-6 items-center justify-center rounded bg-[#063EF8] text-white">
             <Atom className="size-4" />
           </div>
           <span className="font-semibold text-base sm:text-lg">ACT 2.0</span>
@@ -141,7 +141,7 @@ export function DashboardSidebar({
         {/* Brand Card */}
         {brand && (
           <div className="flex items-center gap-2 sm:gap-3 rounded-lg border bg-card p-2 sm:p-3 mb-3 sm:mb-4">
-            <div className="flex size-8 sm:size-[34px] items-center justify-center rounded-lg bg-[#889def] text-white shrink-0">
+            <div className="flex size-8 sm:size-[34px] items-center justify-center rounded-lg bg-[#063EF8] text-white shrink-0">
               <span className="text-sm font-bold">{brand.name?.[0]?.toUpperCase() || 'A'}</span>
             </div>
             <div className="flex-1 min-w-0">
@@ -170,13 +170,13 @@ export function DashboardSidebar({
                     <Link href={item.href}>
                       <item.icon
                         className={`size-4 sm:size-5 ${
-                          item.isGradient ? "text-[#889def]" : ""
+                          item.isGradient ? "text-[#063EF8]" : ""
                         }`}
                       />
                       <span
                         className={`text-sm ${
                           item.isGradient
-                            ? "text-[#889def] font-medium"
+                            ? "text-[#063EF8] font-medium"
                             : ""
                         }`}
                       >
@@ -221,7 +221,7 @@ export function DashboardSidebar({
                             {project.name}
                           </span>
                           {project.hasNotification && (
-                            <div className="size-1.5 rounded-full bg-[#889def] shrink-0" />
+                            <div className="size-1.5 rounded-full bg-[#063EF8] shrink-0" />
                           )}
                         </Link>
                       </SidebarMenuButton>
@@ -260,7 +260,7 @@ export function DashboardSidebar({
             <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg cursor-pointer hover:bg-accent transition-colors">
               <Avatar className="size-7 sm:size-8">
                 {user?.avatar && <AvatarImage src={user.avatar} />}
-                <AvatarFallback className="text-xs bg-[#889def] text-white">
+                <AvatarFallback className="text-xs bg-[#063EF8] text-white">
                   {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>

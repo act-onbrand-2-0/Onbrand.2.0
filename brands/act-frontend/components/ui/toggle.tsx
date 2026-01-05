@@ -41,10 +41,10 @@ export default function Toggle({
         style={{
           width: width,
           height: height,
-          backgroundColor: isToggled ? "#889def" : "#d1d5db",
+          backgroundColor: isToggled ? "#063EF8" : "#d1d5db",
           padding: padding
         }}
-        animate={{ backgroundColor: isToggled ? "#889def" : "#d1d5db" }}
+        animate={{ backgroundColor: isToggled ? "#063EF8" : "#d1d5db" }}
         transition={{ duration: transitionDuration }}
         onClick={handleToggle}
       >

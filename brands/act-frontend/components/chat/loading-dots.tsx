@@ -28,17 +28,17 @@ export function LoadingJumpingDots() {
     >
       <motion.div
         className="w-2 h-2 rounded-full will-change-transform"
-        style={{ backgroundColor: '#889def' }}
+        style={{ backgroundColor: '#063EF8' }}
         variants={dotVariants}
       />
       <motion.div
         className="w-2 h-2 rounded-full will-change-transform"
-        style={{ backgroundColor: '#889def' }}
+        style={{ backgroundColor: '#063EF8' }}
         variants={dotVariants}
       />
       <motion.div
         className="w-2 h-2 rounded-full will-change-transform"
-        style={{ backgroundColor: '#889def' }}
+        style={{ backgroundColor: '#063EF8' }}
         variants={dotVariants}
       />
     </motion.div>

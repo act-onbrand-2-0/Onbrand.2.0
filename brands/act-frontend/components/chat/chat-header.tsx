@@ -20,6 +20,12 @@ import {
   Settings,
   ChevronDown,
   RefreshCw,
+  MoreVertical,
+  Share2,
+  Trash2,
+  Archive,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { ChatSidebar } from './chat-sidebar';
 
@@ -136,6 +142,71 @@ export function ChatHeader({
             <Settings className="h-4 w-4" />
             <span className="sr-only">Settings</span>
           </Button>
+        )}
+
+        {/* More Options Menu */}
+        {conversation && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">More options</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={() => {
+                  if (navigator.share) {
+                    navigator.share({
+                      title: conversation.title || 'Chat',
+                      text: `Check out this chat: ${conversation.title}`,
+                      url: window.location.href,
+                    }).catch(() => {});
+                  } else {
+                    navigator.clipboard.writeText(window.location.href);
+                    alert('Link copied to clipboard');
+                  }
+                }}
+              >
+                <Share2 className="h-4 w-4 mr-2" />
+                Share Chat
+              </DropdownMenuItem>
+              {onToggleVisibility && (
+                <DropdownMenuItem
+                  onClick={() => onToggleVisibility(
+                    conversation.id, 
+                    conversation.visibility === 'shared' ? 'private' : 'shared'
+                  )}
+                >
+                  {conversation.visibility === 'shared' ? (
+                    <>
+                      <EyeOff className="h-4 w-4 mr-2" />
+                      Make Private
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="h-4 w-4 mr-2" />
+                      Make Shared
+                    </>
+                  )}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              {onArchiveConversation && (
+                <DropdownMenuItem onClick={() => onArchiveConversation(conversation.id)}>
+                  <Archive className="h-4 w-4 mr-2" />
+                  Archive
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem 
+                onClick={() => onDeleteConversation(conversation.id)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
     </header>

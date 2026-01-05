@@ -45,11 +45,11 @@ const GoogleLogo = () => (
   </svg>
 );
 
-// Available AI models
+// Available AI models with feature support
 export const AI_MODELS = [
-  { id: 'claude-4.5', name: 'Claude 4.5', provider: 'Anthropic', icon: AnthropicLogo },
-  { id: 'gpt-5.2', name: 'GPT 5.2', provider: 'OpenAI', icon: OpenAILogo },
-  { id: 'gemini-3.1', name: 'Gemini 3.1', provider: 'Google', icon: GoogleLogo },
+  { id: 'claude-4.5', name: 'Claude 4.5', provider: 'Anthropic', icon: AnthropicLogo, supportsWebSearch: false, supportsDeepResearch: true },
+  { id: 'gpt-5.2', name: 'GPT 5.2', provider: 'OpenAI', icon: OpenAILogo, supportsWebSearch: true, supportsDeepResearch: true },
+  { id: 'gemini-3.1', name: 'Gemini 3.1', provider: 'Google', icon: GoogleLogo, supportsWebSearch: true, supportsDeepResearch: true },
 ] as const;
 
 export type ModelId = typeof AI_MODELS[number]['id'];
@@ -473,6 +473,16 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const predictionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Clear features when switching to a model that doesn't support them
+  useEffect(() => {
+    if (useWebSearch && !selectedModel.supportsWebSearch) {
+      setUseWebSearch(false);
+    }
+    if (useDeepResearch && !selectedModel.supportsDeepResearch) {
+      setUseDeepResearch(false);
+    }
+  }, [model, selectedModel.supportsWebSearch, selectedModel.supportsDeepResearch, useWebSearch, useDeepResearch]);
+
   // Find matching prediction based on input
   const findPrediction = useCallback((text: string): string => {
     if (!text || text.length < 2) return '';
@@ -795,94 +805,26 @@ export function ChatInput({
 									<Paperclip className="size-4" />
 									<span>Add files or images</span>
 								</DropdownMenuItem>
-								{/* Add to project submenu */}
-								{(projects.length > 0 || onCreateProject) && (
-									<DropdownMenuSub>
-										<DropdownMenuSubTrigger className="flex items-center justify-between gap-2">
-											<span>Add to project</span>
-										</DropdownMenuSubTrigger>
-										<DropdownMenuSubContent className="w-64">
-											{/* Existing projects */}
-											{projects.length > 0 && (
-												<div className="py-1">
-													{projects.map((p) => (
-														<DropdownMenuItem
-															key={p.id}
-															onClick={() => {
-																if (onMoveConversationToProject) {
-																	onMoveConversationToProject(p.id);
-																} else {
-																	onSelectProject?.(p.id);
-																}
-															}}
-															className="flex items-center justify-between gap-2"
-														>
-															<span className="truncate">{p.name}</span>
-															{currentConversationProjectId === p.id && <Check className="size-4" />}
-														</DropdownMenuItem>
-													))}
-												</div>
-											)}
-											{/* Divider */}
-											{onCreateProject && <div className="my-1 h-px bg-border" />}
-											{/* Create new project */}
-											{onCreateProject && (
-												<DropdownMenuItem
-													onClick={async () => {
-														const name = window.prompt('Project name');
-														if (!name) return;
-														const id = await onCreateProject(name);
-														if (id) {
-															if (onMoveConversationToProject) {
-																onMoveConversationToProject(id);
-															} else {
-																onSelectProject?.(id);
-															}
-														}
-													}}
-													className="flex items-center gap-2"
-												>
-													<span className="text-sm">+ Start a new project</span>
-												</DropdownMenuItem>
-											)}
-										</DropdownMenuSubContent>
-									</DropdownMenuSub>
+								{/* Only show Web Search if current model supports it */}
+								{selectedModel.supportsWebSearch && (
+									<DropdownMenuItem
+										onClick={() => setUseWebSearch(prev => !prev)}
+										className="flex items-center justify-between gap-2"
+									>
+										<span>Web Search</span>
+										{useWebSearch ? <Check className="size-4" /> : null}
+									</DropdownMenuItem>
 								)}
-								{/* Use style submenu */}
-								<DropdownMenuSub>
-									<DropdownMenuSubTrigger className="flex items-center justify-between gap-2">
-										<span>Use style</span>
-									</DropdownMenuSubTrigger>
-									<DropdownMenuSubContent className="w-56">
-										{STYLE_PRESETS.map((style) => (
-											<DropdownMenuItem
-												key={style.id}
-												onClick={() => onStyleChange?.(style.id)}
-												className="flex items-center justify-between gap-2"
-											>
-												<div className="flex items-center gap-2">
-													<style.icon className="size-4" />
-													<span>{style.label}</span>
-												</div>
-												{currentConversationStylePreset === style.id && <Check className="size-4" />}
-											</DropdownMenuItem>
-										))}
-									</DropdownMenuSubContent>
-								</DropdownMenuSub>
-								<DropdownMenuItem
-									onClick={() => setUseWebSearch(prev => !prev)}
-									className="flex items-center justify-between gap-2"
-								>
-									<span>Web Search</span>
-									{useWebSearch ? <Check className="size-4" /> : null}
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={() => setUseDeepResearch(prev => !prev)}
-									className="flex items-center justify-between gap-2"
-								>
-									<span>Deep Research</span>
-									{useDeepResearch ? <Check className="size-4" /> : null}
-								</DropdownMenuItem>
+								{/* Only show Deep Research if current model supports it */}
+								{selectedModel.supportsDeepResearch && (
+									<DropdownMenuItem
+										onClick={() => setUseDeepResearch(prev => !prev)}
+										className="flex items-center justify-between gap-2"
+									>
+										<span>Deep Research</span>
+										{useDeepResearch ? <Check className="size-4" /> : null}
+									</DropdownMenuItem>
+								)}
 							</DropdownMenuContent>
 						</DropdownMenu>
 
@@ -938,22 +880,20 @@ export function ChatInput({
 						{useWebSearch && (
 							<button
 								onClick={() => setUseWebSearch(false)}
-								className="group ml-1 inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-foreground hover:bg-muted/80 transition-colors"
+								className="group ml-1 inline-flex items-center gap-1.5 rounded-md bg-[#063EF8] px-2.5 py-1 text-xs text-white hover:bg-[#063EF8]/90 transition-colors"
 							>
-								<Globe className="size-3" />
-								<span>Web Search on</span>
-								<X className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+								<Globe className="size-3.5" />
+								<span>Search</span>
 							</button>
 						)}
 						{/* Deep Research active chip */}
 						{useDeepResearch && (
 							<button
 								onClick={() => setUseDeepResearch(false)}
-								className="group ml-1 inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-foreground hover:bg-muted/80 transition-colors"
+								className="group ml-1 inline-flex items-center gap-1.5 rounded-md bg-[#063EF8] px-2.5 py-1 text-xs text-white hover:bg-[#063EF8]/90 transition-colors"
 							>
-								<Sparkles className="size-3" />
-								<span>Deep Research on</span>
-								<X className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+								<Sparkles className="size-3.5" />
+								<span>Research</span>
 							</button>
 						)}
 					{/* Project selected chip */}

@@ -10,7 +10,7 @@ const actions = [
     description: "Chat with AI assistant",
     icon: MessageSquare,
     href: "/chat",
-    color: "from-[#889def] to-[#6b7fd4]",
+    color: "from-[#063EF8] to-[#6b7fd4]",
   },
   {
     title: "Generate Image",

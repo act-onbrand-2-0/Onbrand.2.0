@@ -35,7 +35,7 @@ export function DashboardChatPrompt() {
         className={cn(
           "flex items-center gap-3 px-4 py-3 rounded-full border bg-card transition-all duration-200",
           isFocused 
-            ? "border-[#889def] ring-2 ring-[#889def]/20 shadow-lg" 
+            ? "border-[#063EF8] ring-2 ring-[#063EF8]/20 shadow-lg" 
             : "border-border hover:border-muted-foreground/50 shadow-sm"
         )}
       >

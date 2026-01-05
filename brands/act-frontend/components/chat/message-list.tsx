@@ -20,6 +20,7 @@ interface MessageListProps {
   streamingContent?: string;
   activeToolCall?: string | null;
   isDeepResearchActive?: boolean;
+  userName?: string;
 }
 
 export function MessageList({
@@ -29,6 +30,7 @@ export function MessageList({
   streamingContent,
   activeToolCall,
   isDeepResearchActive = false,
+  userName,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -67,7 +69,7 @@ export function MessageList({
         ref={containerRef}
       >
         <div className="mx-auto flex min-w-0 max-w-4xl flex-col gap-4 px-2 py-4 md:gap-6 md:px-4">
-          {messages.length === 0 && <Greeting />}
+          {messages.length === 0 && <Greeting userName={userName} />}
 
           {messages.map((message, index) => (
             <ChatMessage

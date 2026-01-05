@@ -48,13 +48,17 @@ export function getSuggestedActionsForRole(jobFunction?: string | null): Array<{
   return ROLE_SUGGESTIONS[jobFunction] || DEFAULT_SUGGESTIONS;
 }
 
-export function Greeting() {
+interface GreetingProps {
+  userName?: string;
+}
+
+export function Greeting({ userName }: GreetingProps) {
   return (
     <div className="flex flex-col items-center justify-center py-8 md:py-16 px-4">
       {/* Welcome Text */}
       <div className="flex flex-col items-center gap-2 text-center">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
-          Hello there!
+          Hello there{userName ? `, ${userName}` : ''}!
         </h1>
         <p className="text-muted-foreground text-base md:text-lg">
           How can I help you today?
@@ -73,7 +77,7 @@ export function SuggestedActions({ onSelect, jobFunction }: SuggestedActionsProp
   const suggestions = getSuggestedActionsForRole(jobFunction);
   
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl mx-auto px-4 mb-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl mx-auto px-4 mb-8">
       {suggestions.map((action) => (
         <button
           key={action.label}

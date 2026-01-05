@@ -31,24 +31,8 @@ const nextConfig = {
       },
     ],
   },
-  // Enable hostname rewrites for multi-tenant setup
-  async rewrites() {
-    return {
-      beforeFiles: [
-        // Handle subdomain routing
-        {
-          source: '/:path*',
-          has: [
-            {
-              type: 'host',
-              value: '(?<subdomain>.+)\\.onbrandai\\.app',
-            },
-          ],
-          destination: '/brand/:subdomain/:path*',
-        },
-      ],
-    };
-  },
+  // Note: Subdomain brand detection is handled by middleware via x-brand-subdomain header
+  // No rewrites needed - all routes work the same on any subdomain
   // Disable TypeScript type checking during production build
   typescript: {
     ignoreBuildErrors: true,

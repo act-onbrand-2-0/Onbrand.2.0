@@ -151,27 +151,21 @@ export async function middleware(request: NextRequest) {
     return response;
   }
   
-  // For subdomain access (e.g., ACT.onbrandai.app), validate the brand
+  // For subdomain access (e.g., ACT.onbrandai.app), pass through and let app handle brand context
+  // Note: Strict brand validation disabled for now - can be enabled once brands table has subdomain column
   if (!isMain && subdomain) {
-    const { valid, brandId } = await validateBrandSubdomain(subdomain);
+    // Optional: validate brand exists in database
+    // const { valid, brandId } = await validateBrandSubdomain(subdomain);
+    // if (!valid) {
+    //   return NextResponse.redirect(new URL('/', 'https://onbrandai.app'));
+    // }
     
-    if (!valid) {
-      // Invalid subdomain - redirect to main site
-      const mainUrl = new URL('/', request.url);
-      mainUrl.hostname = 'onbrandai.app';
-      return NextResponse.redirect(mainUrl);
-    }
-    
-    // Valid brand subdomain - pass brand info to app
+    // Pass brand info to app - use subdomain as brand ID
     const response = NextResponse.next();
     response.headers.set('x-brand-subdomain', subdomain);
-    response.headers.set('x-brand-id', brandId || subdomain);
+    response.headers.set('x-brand-id', subdomain);
     response.headers.set('x-hostname', hostname);
     response.headers.set('x-is-main-domain', 'false');
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`Brand validated: ${subdomain} (ID: ${brandId}) from ${hostname}`);
-    }
     
     return response;
   }

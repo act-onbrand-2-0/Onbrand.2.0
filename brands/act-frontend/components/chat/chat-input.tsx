@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback, useEffect, KeyboardEvent, useState, ChangeEvent, useMemo } from 'react';
+import { useRef, useCallback, useEffect, KeyboardEvent, useState, ChangeEvent, useMemo, ClipboardEvent } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -617,6 +617,61 @@ export function ChatInput({
     });
   }, []);
 
+  // Handle paste event for images
+  const handlePaste = useCallback((e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageItems: DataTransferItem[] = [];
+    
+    // Check for image items in clipboard
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        imageItems.push(item);
+      }
+    }
+
+    // If no images, let default paste behavior handle it
+    if (imageItems.length === 0) return;
+
+    // Prevent default to stop image data from being pasted as text
+    e.preventDefault();
+
+    const newAttachments: Attachment[] = [];
+
+    imageItems.forEach((item) => {
+      const file = item.getAsFile();
+      if (!file) return;
+
+      // Validate file type
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        alert(`Image type "${file.type}" is not supported. Please use JPEG, PNG, GIF, or WebP.`);
+        return;
+      }
+
+      // Validate file size
+      if (file.size > MAX_IMAGE_SIZE) {
+        alert(`Pasted image is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum size is ${(MAX_IMAGE_SIZE / 1024 / 1024).toFixed(0)}MB.`);
+        return;
+      }
+
+      // Create attachment with preview
+      const attachment: Attachment = {
+        id: crypto.randomUUID(),
+        file,
+        type: 'image',
+        preview: URL.createObjectURL(file),
+      };
+
+      newAttachments.push(attachment);
+    });
+
+    if (newAttachments.length > 0) {
+      setAttachments((prev) => [...prev, ...newAttachments]);
+    }
+  }, []);
+
   // Cleanup previews on unmount
   useEffect(() => {
     return () => {
@@ -765,6 +820,7 @@ export function ChatInput({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={placeholder}
             disabled={disabled || isLoading}
             className={cn(

@@ -11,13 +11,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Search,
-  Bell,
   Command,
   MoreVertical,
   Sun,
   Moon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { NotificationBell } from "@/components/notifications";
 
 interface DashboardHeaderProps {
   title?: string;
@@ -57,10 +57,7 @@ export function DashboardHeader({ title = "Dashboard" }: DashboardHeaderProps) {
       </Button>
 
       {/* Notifications */}
-      <Button variant="ghost" size="icon" className="relative">
-        <Bell className="size-5" />
-        <span className="absolute top-1 right-1 size-2 rounded-full bg-[#063EF8]" />
-      </Button>
+      <NotificationBell />
 
       {/* Mobile Menu */}
       <DropdownMenu>

@@ -2,10 +2,49 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
+/**
+ * OAuth Callback Handler
+ * 
+ * This route handles the OAuth callback from Supabase Auth.
+ * It exchanges the authorization code for a session and redirects
+ * the user to the appropriate destination.
+ * 
+ * IMPORTANT: For this to work with subdomains, you must configure
+ * Supabase Dashboard > Authentication > URL Configuration:
+ * 
+ * 1. Site URL: https://onbrandai.app
+ * 2. Redirect URLs (add ALL of these):
+ *    - https://onbrandai.app/auth/callback
+ *    - https://*.onbrandai.app/auth/callback (if wildcard supported)
+ *    - Or explicitly add each subdomain:
+ *      - https://act.onbrandai.app/auth/callback
+ *      - https://acme.onbrandai.app/auth/callback
+ *    - For Netlify deploy previews:
+ *      - https://*.netlify.app/auth/callback
+ */
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
   const next = requestUrl.searchParams.get('next') || '/dashboard';
+  const error_description = requestUrl.searchParams.get('error_description');
+  const error_param = requestUrl.searchParams.get('error');
+
+  // Log for debugging (remove in production)
+  console.log('[Auth Callback] URL:', requestUrl.toString());
+  console.log('[Auth Callback] Origin:', requestUrl.origin);
+  console.log('[Auth Callback] Code present:', !!code);
+  console.log('[Auth Callback] Next:', next);
+
+  // Handle OAuth errors from provider
+  if (error_param) {
+    console.error('[Auth Callback] OAuth error:', error_param, error_description);
+    const loginUrl = new URL('/login', requestUrl.origin);
+    loginUrl.searchParams.set('error', error_param);
+    if (error_description) {
+      loginUrl.searchParams.set('error_description', error_description);
+    }
+    return NextResponse.redirect(loginUrl);
+  }
 
   if (code) {
     const cookieStore = await cookies();
@@ -32,14 +71,25 @@ export async function GET(request: Request) {
       }
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
-    if (!error) {
+    if (error) {
+      console.error('[Auth Callback] Session exchange error:', error.message);
+      return NextResponse.redirect(new URL(`/login?error=auth_failed&message=${encodeURIComponent(error.message)}`, requestUrl.origin));
+    }
+
+    if (data?.user) {
+      console.log('[Auth Callback] User authenticated:', data.user.email);
+      
       // Successful auth - redirect to intended destination
-      return NextResponse.redirect(new URL(next, requestUrl.origin));
+      // The destination is relative to the current origin (preserves subdomain)
+      const redirectUrl = new URL(next, requestUrl.origin);
+      console.log('[Auth Callback] Redirecting to:', redirectUrl.toString());
+      return NextResponse.redirect(redirectUrl);
     }
   }
 
-  // Auth failed - redirect to login with error
-  return NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin));
+  // No code provided - redirect to login
+  console.error('[Auth Callback] No code provided');
+  return NextResponse.redirect(new URL('/login?error=no_code', requestUrl.origin));
 }

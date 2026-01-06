@@ -28,6 +28,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { ChatSidebar } from './chat-sidebar';
+import { NotificationBell } from '@/components/notifications';
 
 interface Conversation {
   id: string;
@@ -130,6 +131,9 @@ export function ChatHeader({
             <span className="sr-only">Regenerate response</span>
           </Button>
         )}
+
+        {/* Notifications */}
+        <NotificationBell />
 
         {/* Settings */}
         {onOpenSettings && (

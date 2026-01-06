@@ -668,6 +668,12 @@ function ProjectItem({
   const [publicShareUrl, setPublicShareUrl] = useState<string | null>(null);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [publicCopied, setPublicCopied] = useState(false);
+  
+  // Email sharing state
+  const [shareEmail, setShareEmail] = useState('');
+  const [isEmailSharing, setIsEmailSharing] = useState(false);
+  const [emailShareError, setEmailShareError] = useState<string | null>(null);
+  const [emailShareSuccess, setEmailShareSuccess] = useState(false);
 
   // Load team members and existing shares when share dialog opens
   const loadShareData = async () => {
@@ -709,7 +715,55 @@ function ProjectItem({
     setShareSuccess(false);
     setSelectedMembers(new Set());
     setPublicShareUrl(null);
+    setShareEmail('');
+    setEmailShareError(null);
+    setEmailShareSuccess(false);
     loadShareData();
+  };
+
+  // Share project by email
+  const handleShareProjectByEmail = async () => {
+    if (!shareEmail.trim()) return;
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(shareEmail.trim())) {
+      setEmailShareError('Please enter a valid email address');
+      return;
+    }
+    
+    setIsEmailSharing(true);
+    setEmailShareError(null);
+    setEmailShareSuccess(false);
+    
+    try {
+      const response = await fetch('/api/project-shares', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: project.id,
+          email: shareEmail.trim(),
+          message: `Shared folder "${project.name}"`,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        setEmailShareError(data.error || data.details || 'Failed to share');
+        return;
+      }
+      
+      setEmailShareSuccess(true);
+      setShareEmail('');
+      loadShareData();
+      setTimeout(() => setEmailShareSuccess(false), 2000);
+    } catch (error) {
+      console.error('Error sharing project by email:', error);
+      setEmailShareError('Failed to share. Please try again.');
+    } finally {
+      setIsEmailSharing(false);
+    }
   };
 
   const handleToggleMember = (memberId: string) => {
@@ -1138,6 +1192,54 @@ function ProjectItem({
                       )}
                     </Button>
                   )}
+
+                  {/* Share by Email */}
+                  <div className="pt-3 border-t">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Share by Email</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Share this folder with someone outside your team
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        type="email"
+                        placeholder="email@example.com"
+                        value={shareEmail}
+                        onChange={(e) => {
+                          setShareEmail(e.target.value);
+                          setEmailShareError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleShareProjectByEmail();
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                      <Button
+                        onClick={handleShareProjectByEmail}
+                        disabled={!shareEmail.trim() || isEmailSharing}
+                        size="sm"
+                      >
+                        {isEmailSharing ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : emailShareSuccess ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          'Share'
+                        )}
+                      </Button>
+                    </div>
+                    {emailShareError && (
+                      <p className="text-xs text-destructive mt-1">{emailShareError}</p>
+                    )}
+                    {emailShareSuccess && (
+                      <p className="text-xs text-green-600 mt-1">Invitation sent!</p>
+                    )}
+                  </div>
 
                   {/* Currently Shared With */}
                   {existingShares.length > 0 && (

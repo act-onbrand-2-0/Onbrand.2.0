@@ -465,6 +465,29 @@ export default function ChatPage() {
     async function fetchConversations() {
       setIsLoadingConversations(true);
       
+      // If we have a conversation ID from URL, first check for and accept any pending shares
+      if (conversationIdFromUrl) {
+        try {
+          // Check for pending shares for this conversation
+          const shareResponse = await fetch(`/api/conversation-shares?conversationId=${conversationIdFromUrl}&myShares=true`);
+          if (shareResponse.ok) {
+            const shareData = await shareResponse.json();
+            const pendingShare = shareData.shares?.find((s: any) => s.status === 'pending');
+            if (pendingShare) {
+              // Accept the pending share before fetching conversation
+              await fetch('/api/conversation-shares', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shareId: pendingShare.id, action: 'accept' }),
+              });
+              console.log('Share accepted in chat page');
+            }
+          }
+        } catch (err) {
+          console.error('Error checking/accepting share:', err);
+        }
+      }
+      
       // RLS handles visibility - returns user's own + shared conversations from their brand
       const { data, error } = await supabase
         .from('conversations')

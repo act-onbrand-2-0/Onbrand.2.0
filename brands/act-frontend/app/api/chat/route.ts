@@ -216,6 +216,8 @@ export async function POST(req: NextRequest) {
     console.log('=== CHAT API DEBUG ===');
     console.log('Full body received:', JSON.stringify(body, null, 2));
     console.log('Model from body:', model);
+    console.log('useWebSearch:', useWebSearch);
+    console.log('useDeepResearch:', useDeepResearch);
     console.log('========================');
 
     // Validate brand access (in production, verify user has access to this brand)
@@ -525,8 +527,13 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
       const tools: Record<string, unknown> = { ...(hasMCPTools ? mcpTools : {}) };
 
       // Optional Web Search via native provider tools (OpenAI and Gemini only)
+      console.log('=== WEB SEARCH DEBUG ===');
+      console.log('useWebSearch value:', useWebSearch);
+      console.log('model:', model);
+      const modelConfig = MODELS[model as ModelKey] || MODELS['claude-4.5'];
+      console.log('modelConfig:', modelConfig);
+      
       if (useWebSearch) {
-        const modelConfig = MODELS[model as ModelKey] || MODELS['claude-4.5'];
         if (modelConfig.provider === 'openai') {
           // OpenAI's native web search tool
           tools.web_search = openai.tools.webSearch({
@@ -537,10 +544,15 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
           // Gemini's native Google Search grounding
           tools.google_search = google.tools.googleSearch({});
           console.log('Web search enabled via Gemini Google Search grounding');
+          console.log('google_search tool added:', !!tools.google_search);
+          // Add instruction to use search
+          streamOptions.system = `${streamOptions.system || finalSystemPrompt}\n\nIMPORTANT: You have access to Google Search. When the user asks for current information, news, facts, or anything that would benefit from real-time web data, USE the google_search tool to find accurate, up-to-date information. Always search before answering questions about current events, recent news, or factual queries.`;
         } else {
           // Claude doesn't have native web search
           console.warn(`Web search requested but model provider is ${modelConfig.provider}. Web search only available with OpenAI and Gemini models.`);
         }
+      } else {
+        console.log('Web search NOT enabled - useWebSearch is falsy');
       }
 
       const hasTools = Object.keys(tools).length > 0;

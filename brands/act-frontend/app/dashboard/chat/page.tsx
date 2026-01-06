@@ -263,6 +263,8 @@ export default function ChatPage() {
       console.log('projectIdRef.current:', projectIdRef.current);
       console.log('conversationRef.current?.project_id:', conversationRef.current?.project_id);
       console.log('Final projectId being sent:', apiBody.projectId);
+      console.log('useWebSearch being sent:', apiBody.useWebSearch);
+      console.log('options received:', options);
       
       const response = await fetch('/api/chat', {
         method: 'POST',

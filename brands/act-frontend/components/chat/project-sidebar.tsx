@@ -196,9 +196,19 @@ export function ProjectSidebar({
     projects.filter(p => p.is_default).map(p => p.id)
   );
 
-  // Group conversations by project
+  // Separate shared conversations (conversations owned by others)
+  const sharedConversations = conversations.filter(
+    conv => currentUserId && conv.user_id && conv.user_id !== currentUserId
+  );
+  
+  // Filter out shared conversations from the main list
+  const ownedConversations = conversations.filter(
+    conv => !currentUserId || !conv.user_id || conv.user_id === currentUserId
+  );
+
+  // Group owned conversations by project
   // Conversations in default projects go to 'uncategorized' (shown in "General" section)
-  const conversationsByProject = conversations.reduce(
+  const conversationsByProject = ownedConversations.reduce(
     (acc, conv) => {
       const isDefaultProject = conv.project_id && defaultProjectIds.has(conv.project_id);
       const projectId = (!conv.project_id || isDefaultProject) ? 'uncategorized' : conv.project_id;
@@ -438,6 +448,34 @@ export function ProjectSidebar({
                               )
                           : undefined
                       }
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Shared conversations (from other users) */}
+            {sharedConversations.length > 0 && (
+              <div className="mt-4">
+                <h3 className="px-3 py-2 text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <Users className="size-3" />
+                  Shared with me
+                </h3>
+                <div className="space-y-1">
+                  {sharedConversations.map((conv) => (
+                    <ConversationItem
+                      key={conv.id}
+                      conversation={conv}
+                      isActive={currentConversationId === conv.id}
+                      isOwner={false}
+                      onSelect={() => onSelectConversation(conv.id)}
+                      onDelete={() => onDeleteConversation(conv.id)}
+                      onArchive={
+                        onArchiveConversation
+                          ? () => onArchiveConversation(conv.id)
+                          : undefined
+                      }
+                      onToggleVisibility={undefined}
                     />
                   ))}
                 </div>

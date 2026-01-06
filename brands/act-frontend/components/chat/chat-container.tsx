@@ -9,6 +9,7 @@ import { ChatInput, type ModelId, type Attachment, type StylePreset } from './ch
 import { type MessageAttachment, type ToolInvocation } from './chat-message';
 import { SuggestedActions } from './greeting';
 import { cn } from '@/lib/utils';
+import { NotificationBell } from '@/components/notifications';
 
 interface Message {
   id: string;
@@ -174,6 +175,11 @@ export function ChatContainer({
 
   return (
     <div className="flex h-full flex-1 bg-background relative">
+      {/* Notification Bell - Top Right */}
+      <div className="absolute top-3 right-4 z-20">
+        <NotificationBell />
+      </div>
+
       {/* Main Chat Area */}
       <div className="flex flex-1 flex-col min-w-0">
         {/* Show Project Detail View when project is selected but no conversation and not creating new chat */}

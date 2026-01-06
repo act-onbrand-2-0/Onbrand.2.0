@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ChatContainer } from '@/components/chat/chat-container';
 import { type ModelId, type Attachment } from '@/components/chat/chat-input';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // Helper to convert file to base64
 async function fileToBase64(file: File): Promise<string> {
@@ -78,6 +78,8 @@ interface Message {
 
 export default function ChatPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const conversationIdFromUrl = searchParams.get('c');
   
   // Create Supabase client (memoized to prevent recreation)
   const supabase = useMemo(() => createClient(), []);
@@ -473,6 +475,16 @@ export default function ChatPage() {
 
       if (!error && data) {
         setConversations(data);
+        
+        // Auto-select conversation from URL param if present
+        if (conversationIdFromUrl && !currentConversation) {
+          const targetConv = data.find((c: Conversation) => c.id === conversationIdFromUrl);
+          if (targetConv) {
+            setCurrentConversation(targetConv);
+            // Clear the URL param after selecting (cleaner URL)
+            router.replace('/dashboard/chat', { scroll: false });
+          }
+        }
       }
       
       setIsLoadingConversations(false);
@@ -500,7 +512,7 @@ export default function ChatPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [brandId, userId, supabase]);
+  }, [brandId, userId, supabase, conversationIdFromUrl, router]);
 
   // Fetch messages when conversation changes
   useEffect(() => {

@@ -488,7 +488,7 @@ export default function ChatPage() {
         }
       }
       
-      // RLS handles visibility - returns user's own + shared conversations from their brand
+      // Fetch user's own conversations
       const { data, error } = await supabase
         .from('conversations')
         .select('*, user_id')
@@ -496,8 +496,24 @@ export default function ChatPage() {
         .eq('archived', false)
         .order('last_message_at', { ascending: false });
 
+      // Also fetch shared conversations from other users
+      let sharedConversations: any[] = [];
+      try {
+        const sharedResponse = await fetch('/api/shared-conversation/list');
+        if (sharedResponse.ok) {
+          const sharedData = await sharedResponse.json();
+          sharedConversations = sharedData.conversations || [];
+        }
+      } catch (err) {
+        console.error('Error fetching shared conversations:', err);
+      }
+
       if (!error && data) {
-        setConversations(data);
+        // Merge owned and shared conversations, avoiding duplicates
+        const ownedIds = new Set(data.map((c: any) => c.id));
+        const uniqueShared = sharedConversations.filter((c: any) => !ownedIds.has(c.id));
+        const allConversations = [...data, ...uniqueShared];
+        setConversations(allConversations);
         
         // Auto-select conversation from URL param if present
         if (conversationIdFromUrl && !currentConversation) {

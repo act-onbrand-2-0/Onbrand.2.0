@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Create share records
+    // Create share records using service client to bypass RLS
     const shares = newUserIds.map((userId: string) => ({
       project_id: projectId,
       shared_by: user.id,
@@ -154,14 +154,15 @@ export async function POST(request: NextRequest) {
       status: 'pending',
     }));
 
-    const { data: createdShares, error: insertError } = await supabase
+    const { data: createdShares, error: insertError } = await serviceSupabase
       .from('project_shares')
       .insert(shares)
       .select();
 
     if (insertError) {
       console.error('Error creating project shares:', insertError);
-      return NextResponse.json({ error: 'Failed to share project' }, { status: 500 });
+      console.error('Insert error details:', JSON.stringify(insertError));
+      return NextResponse.json({ error: 'Failed to share project', details: insertError.message }, { status: 500 });
     }
 
     return NextResponse.json({ 

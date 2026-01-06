@@ -496,26 +496,57 @@ export default function ChatPage() {
         .eq('archived', false)
         .order('last_message_at', { ascending: false });
 
-      // Also fetch shared conversations from other users
+      // Fetch shared conversations (single chats shared directly)
       let sharedConversations: any[] = [];
       try {
         const sharedResponse = await fetch('/api/shared-conversation/list');
         if (sharedResponse.ok) {
           const sharedData = await sharedResponse.json();
-          sharedConversations = sharedData.conversations || [];
-          console.log('Fetched shared conversations:', sharedConversations.length, sharedConversations);
-        } else {
-          console.error('Failed to fetch shared conversations:', sharedResponse.status);
+          // Mark these as directly shared (read-only)
+          sharedConversations = (sharedData.conversations || []).map((c: any) => ({
+            ...c,
+            _isDirectlyShared: true // Flag for read-only access
+          }));
+          console.log('Fetched shared conversations:', sharedConversations.length);
         }
       } catch (err) {
         console.error('Error fetching shared conversations:', err);
       }
 
+      // Fetch shared projects and their conversations
+      let sharedProjects: any[] = [];
+      let sharedProjectConversations: any[] = [];
+      try {
+        const sharedProjResponse = await fetch('/api/shared-projects/list');
+        if (sharedProjResponse.ok) {
+          const sharedProjData = await sharedProjResponse.json();
+          sharedProjects = sharedProjData.projects || [];
+          // Mark conversations from shared projects (collaborative - can write)
+          sharedProjectConversations = (sharedProjData.conversations || []).map((c: any) => ({
+            ...c,
+            _isFromSharedProject: true // Flag for collaborative access
+          }));
+          console.log('Fetched shared projects:', sharedProjects.length);
+          console.log('Fetched shared project conversations:', sharedProjectConversations.length);
+          // Store shared projects in state
+          setProjects(prev => {
+            const ownedIds = new Set(prev.map(p => p.id));
+            const uniqueSharedProjects = sharedProjects.filter((p: any) => !ownedIds.has(p.id));
+            return [...prev, ...uniqueSharedProjects.map((p: any) => ({ ...p, _isShared: true }))];
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching shared projects:', err);
+      }
+
       if (!error && data) {
-        // Merge owned and shared conversations, avoiding duplicates
+        // Merge owned, shared conversations, and shared project conversations
         const ownedIds = new Set(data.map((c: any) => c.id));
-        const uniqueShared = sharedConversations.filter((c: any) => !ownedIds.has(c.id));
-        const allConversations = [...data, ...uniqueShared];
+        const uniqueDirectlyShared = sharedConversations.filter((c: any) => !ownedIds.has(c.id));
+        const uniqueFromProjects = sharedProjectConversations.filter((c: any) => 
+          !ownedIds.has(c.id) && !uniqueDirectlyShared.some((s: any) => s.id === c.id)
+        );
+        const allConversations = [...data, ...uniqueDirectlyShared, ...uniqueFromProjects];
         setConversations(allConversations);
         
         // Auto-select conversation from URL param if present
@@ -1383,6 +1414,7 @@ export default function ChatPage() {
       userName={userName}
       userEmail={userEmail}
       jobFunction={jobFunction}
+      isReadOnly={!!(currentConversation as any)?._isDirectlyShared && currentConversation?.user_id !== userId}
     />
   );
 }

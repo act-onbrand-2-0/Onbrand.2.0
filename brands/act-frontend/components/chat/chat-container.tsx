@@ -107,6 +107,9 @@ interface ChatContainerProps {
   userName?: string;
   userEmail?: string;
   jobFunction?: string | null;
+  
+  // Read-only mode for single shared chats
+  isReadOnly?: boolean;
 }
 
 export function ChatContainer({
@@ -153,6 +156,7 @@ export function ChatContainer({
 	brandId,
 	selectedMcpServerIds,
 	onMcpServerSelectionChange,
+	isReadOnly = false,
 }: ChatContainerProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
@@ -247,31 +251,37 @@ export function ChatContainer({
 
             {/* Input - Fixed at bottom with more spacing */}
             <div className="mx-auto flex w-full max-w-3xl px-4 pb-8">
-              <ChatInput
-                input={input}
-                setInput={setInput}
-								onSubmit={onSendMessage}
-                onStop={onStopGeneration}
-                isStreaming={isStreaming}
-                isLoading={isLoading}
-                placeholder="Send a message..."
-                model={selectedModel}
-                onModelChange={onModelChange}
-								// New: project actions in + menu
-								projects={projects?.map(p => ({ id: p.id, name: p.name })) || []}
-								currentProjectId={currentProjectId || null}
-								currentConversationProjectId={currentConversation?.project_id || pendingProjectId || null}
-								onSelectProject={onSelectProject}
-								onCreateProject={onCreateProject}
-						onMoveConversationToProject={onMoveConversationToProject}
-						onClearProject={onClearProject}
-						// Style selection
-						currentConversationStylePreset={(currentConversation?.style_preset || pendingStylePreset) as 'normal' | 'learning' | 'concise' | 'explanatory' | 'formal' | null | undefined}
-						onStyleChange={onStyleChange}
-						brandId={brandId}
-						selectedMcpServerIds={selectedMcpServerIds}
-						onMcpServerSelectionChange={onMcpServerSelectionChange}
-              />
+              {isReadOnly ? (
+                <div className="w-full rounded-lg border border-border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
+                  This is a shared chat (read-only). You can view the conversation but cannot send messages.
+                </div>
+              ) : (
+                <ChatInput
+                  input={input}
+                  setInput={setInput}
+                  onSubmit={onSendMessage}
+                  onStop={onStopGeneration}
+                  isStreaming={isStreaming}
+                  isLoading={isLoading}
+                  placeholder="Send a message..."
+                  model={selectedModel}
+                  onModelChange={onModelChange}
+                  // New: project actions in + menu
+                  projects={projects?.map(p => ({ id: p.id, name: p.name })) || []}
+                  currentProjectId={currentProjectId || null}
+                  currentConversationProjectId={currentConversation?.project_id || pendingProjectId || null}
+                  onSelectProject={onSelectProject}
+                  onCreateProject={onCreateProject}
+                  onMoveConversationToProject={onMoveConversationToProject}
+                  onClearProject={onClearProject}
+                  // Style selection
+                  currentConversationStylePreset={(currentConversation?.style_preset || pendingStylePreset) as 'normal' | 'learning' | 'concise' | 'explanatory' | 'formal' | null | undefined}
+                  onStyleChange={onStyleChange}
+                  brandId={brandId}
+                  selectedMcpServerIds={selectedMcpServerIds}
+                  onMcpServerSelectionChange={onMcpServerSelectionChange}
+                />
+              )}
             </div>
           </>
         )}

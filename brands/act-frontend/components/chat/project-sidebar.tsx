@@ -196,20 +196,34 @@ export function ProjectSidebar({
     projects.filter(p => p.is_default).map(p => p.id)
   );
 
+  // Separate shared projects (projects owned by others, marked with _isShared)
+  const sharedProjects = projects.filter(
+    (p: any) => p._isShared === true
+  );
+  
   // Separate shared conversations (conversations owned by others)
   const sharedConversations = conversations.filter(
-    conv => currentUserId && conv.user_id && conv.user_id !== currentUserId
+    (conv: any) => currentUserId && conv.user_id && conv.user_id !== currentUserId
+  );
+  
+  // Get shared project IDs for filtering
+  const sharedProjectIds = new Set(sharedProjects.map(p => p.id));
+  
+  // Shared conversations that are NOT in a shared project (these are read-only single chats)
+  const sharedConversationsWithoutProject = sharedConversations.filter(
+    (conv: any) => !conv.project_id || !sharedProjectIds.has(conv.project_id)
   );
   
   // Filter out shared conversations from the main list
   const ownedConversations = conversations.filter(
-    conv => !currentUserId || !conv.user_id || conv.user_id === currentUserId
+    (conv: any) => !currentUserId || !conv.user_id || conv.user_id === currentUserId
   );
 
   // Debug logging
   console.log('Sidebar - currentUserId:', currentUserId);
   console.log('Sidebar - total conversations:', conversations.length);
-  console.log('Sidebar - shared conversations:', sharedConversations.length, sharedConversations.map(c => ({ id: c.id, user_id: c.user_id, title: c.title })));
+  console.log('Sidebar - shared projects:', sharedProjects.length);
+  console.log('Sidebar - shared single chats:', sharedConversationsWithoutProject.length);
   console.log('Sidebar - owned conversations:', ownedConversations.length);
 
   // Group owned conversations by project
@@ -460,31 +474,66 @@ export function ProjectSidebar({
               </div>
             )}
 
-            {/* Shared conversations (from other users) */}
-            {sharedConversations.length > 0 && (
+            {/* Shared with me section */}
+            {(sharedProjects.length > 0 || sharedConversationsWithoutProject.length > 0) && (
               <div className="mt-4">
                 <h3 className="px-3 py-2 text-xs font-medium text-muted-foreground flex items-center gap-2">
                   <Users className="size-3" />
                   Shared with me
                 </h3>
-                <div className="space-y-1">
-                  {sharedConversations.map((conv) => (
-                    <ConversationItem
-                      key={conv.id}
-                      conversation={conv}
-                      isActive={currentConversationId === conv.id}
-                      isOwner={false}
-                      onSelect={() => onSelectConversation(conv.id)}
-                      onDelete={() => onDeleteConversation(conv.id)}
-                      onArchive={
-                        onArchiveConversation
-                          ? () => onArchiveConversation(conv.id)
-                          : undefined
-                      }
-                      onToggleVisibility={undefined}
-                    />
-                  ))}
-                </div>
+
+                {/* Shared Folders */}
+                {sharedProjects.length > 0 && (
+                  <div className="space-y-1 mb-2">
+                    {sharedProjects.map((project) => (
+                      <ProjectItem
+                        key={project.id}
+                        project={project}
+                        conversations={conversationsByProject[project.id] || []}
+                        files={projectFiles?.[project.id] || []}
+                        isExpanded={effectiveExpandedProjects.has(project.id)}
+                        isSelected={currentProjectId === project.id}
+                        currentConversationId={currentConversationId}
+                        currentUserId={currentUserId}
+                        isSharedProject={true}
+                        onToggle={() => toggleProject(project.id)}
+                        onSelect={() => onSelectProject(project.id)}
+                        onNewChat={() => onNewChat(project.id)}
+                        onSelectConversation={onSelectConversation}
+                        onDeleteConversation={onDeleteConversation}
+                        onDeleteProject={undefined}
+                        onRenameProject={undefined}
+                        onUploadFile={onUploadFile ? (file) => onUploadFile(project.id, file) : undefined}
+                        onDeleteFile={onDeleteFile}
+                        onArchiveConversation={onArchiveConversation}
+                        onToggleVisibility={onToggleVisibility}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Shared Single Chats (read-only) */}
+                {sharedConversationsWithoutProject.length > 0 && (
+                  <div className="space-y-1">
+                    {sharedConversationsWithoutProject.map((conv) => (
+                      <ConversationItem
+                        key={conv.id}
+                        conversation={conv}
+                        isActive={currentConversationId === conv.id}
+                        isOwner={false}
+                        isReadOnly={true}
+                        onSelect={() => onSelectConversation(conv.id)}
+                        onDelete={() => onDeleteConversation(conv.id)}
+                        onArchive={
+                          onArchiveConversation
+                            ? () => onArchiveConversation(conv.id)
+                            : undefined
+                        }
+                        onToggleVisibility={undefined}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -559,13 +608,14 @@ interface ProjectItemProps {
   isSelected: boolean;
   currentConversationId?: string;
   currentUserId?: string;
+  isSharedProject?: boolean;
   onToggle: () => void;
   onSelect: () => void;
   onNewChat: () => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
-  onDeleteProject: () => void;
-  onRenameProject: (name: string) => void;
+  onDeleteProject?: () => void;
+  onRenameProject?: (name: string) => void;
   onUploadFile?: (file: File) => Promise<void>;
   onDeleteFile?: (fileId: string) => Promise<void>;
   onArchiveConversation?: (id: string) => void;
@@ -764,7 +814,7 @@ function ProjectItem({
   };
 
   const handleRename = () => {
-    if (newName.trim() && newName !== project.name) {
+    if (newName.trim() && newName !== project.name && onRenameProject) {
       onRenameProject(newName.trim());
     }
     setShowRenameDialog(false);
@@ -1208,6 +1258,7 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   isOwner: boolean;
+  isReadOnly?: boolean;
   onSelect: () => void;
   onDelete: () => void;
   onArchive?: () => void;
@@ -1218,6 +1269,7 @@ function ConversationItem({
   conversation,
   isActive,
   isOwner,
+  isReadOnly = false,
   onSelect,
   onDelete,
   onArchive,

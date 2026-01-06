@@ -628,7 +628,7 @@ export default function ChatPage() {
     }
 
     fetchMessages();
-  }, [currentConversation, setAiMessages]);
+  }, [currentConversation, setAiMessages, userId, supabase]);
 
   // Handle initial message from dashboard
   const initialMessageHandled = useRef(false);

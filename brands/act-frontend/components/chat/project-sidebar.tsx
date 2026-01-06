@@ -61,6 +61,7 @@ import {
   Link as LinkIcon,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { NotificationBell } from '@/components/notifications';
 
 interface ProjectFile {
   id: string;
@@ -343,6 +344,7 @@ export function ProjectSidebar({
           </Button>
         )}
         <div className="flex items-center gap-1 ml-auto">
+          <NotificationBell />
           <Button
             variant="ghost"
             size="icon"

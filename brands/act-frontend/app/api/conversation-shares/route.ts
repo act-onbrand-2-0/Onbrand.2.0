@@ -204,8 +204,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'You do not own this conversation' }, { status: 403 });
     }
 
-    // Create share records for each user
-    const shares = targetUserIds.map((userId: string) => ({
+    // Check for existing shares and filter out already shared users
+    const { data: existingShares } = await supabase
+      .from('conversation_shares')
+      .select('shared_with')
+      .eq('conversation_id', conversationId)
+      .in('shared_with', targetUserIds);
+    
+    const alreadySharedUserIds = new Set((existingShares || []).map((s: any) => s.shared_with));
+    const newUserIds = targetUserIds.filter((id: string) => !alreadySharedUserIds.has(id));
+    
+    if (newUserIds.length === 0) {
+      return NextResponse.json({ 
+        success: true, 
+        sharesCreated: 0,
+        message: 'Already shared with this user'
+      });
+    }
+
+    // Create share records for new users only
+    const shares = newUserIds.map((userId: string) => ({
       conversation_id: conversationId,
       shared_by: user.id,
       shared_with: userId,
@@ -216,7 +234,7 @@ export async function POST(request: NextRequest) {
 
     const { data: createdShares, error: insertError } = await supabase
       .from('conversation_shares')
-      .upsert(shares, { onConflict: 'conversation_id,shared_with' })
+      .insert(shares)
       .select();
 
     if (insertError) {

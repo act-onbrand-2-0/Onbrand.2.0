@@ -483,6 +483,21 @@ export default function ChatPage() {
             setCurrentConversation(targetConv);
             // Clear the URL param after selecting (cleaner URL)
             router.replace('/chat', { scroll: false });
+          } else {
+            // Conversation not in user's brand list - might be a shared conversation from another brand
+            // Fetch it directly (RLS will allow if user has accepted share)
+            const { data: sharedConv, error: sharedError } = await supabase
+              .from('conversations')
+              .select('*, user_id')
+              .eq('id', conversationIdFromUrl)
+              .single();
+            
+            if (!sharedError && sharedConv) {
+              setCurrentConversation(sharedConv);
+              // Add to conversations list for sidebar display
+              setConversations(prev => [sharedConv, ...prev.filter(c => c.id !== sharedConv.id)]);
+              router.replace('/chat', { scroll: false });
+            }
           }
         }
       }

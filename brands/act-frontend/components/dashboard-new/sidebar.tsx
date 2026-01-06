@@ -169,17 +169,22 @@ export function DashboardSidebar({
         <SidebarGroup className={isCollapsed ? "p-0 w-full flex flex-col items-center" : "p-0"}>
           <SidebarGroupContent className={isCollapsed ? "w-full" : ""}>
             <SidebarMenu className={isCollapsed ? "w-full flex flex-col items-center gap-1" : ""}>
-              {/* Expand button - only when collapsed, as first menu item */}
+              {/* Expand button and Notifications - only when collapsed */}
               {isCollapsed && (
-                <SidebarMenuItem className="w-auto">
-                  <SidebarMenuButton
-                    className="h-10 w-10 !p-0"
-                    tooltip="Expand sidebar"
-                    onClick={toggleSidebar}
-                  >
-                    <PanelLeft className="size-5" />
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <>
+                  <SidebarMenuItem className="w-auto">
+                    <SidebarMenuButton
+                      className="h-10 w-10 !p-0"
+                      tooltip="Expand sidebar"
+                      onClick={toggleSidebar}
+                    >
+                      <PanelLeft className="size-5" />
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem className="w-auto">
+                    <NotificationBell />
+                  </SidebarMenuItem>
+                </>
               )}
               {menuItems.map((item) => {
                 const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname?.startsWith(item.href));

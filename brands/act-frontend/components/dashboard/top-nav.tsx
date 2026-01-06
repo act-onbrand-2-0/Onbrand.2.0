@@ -137,11 +137,6 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
           <Button variant="ghost" size="icon" className="hidden sm:flex">
             <Send className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" className="hidden sm:flex" asChild title="Brand Configuration">
-            <Link href="/brand-configuration">
-              <Settings className="h-5 w-5" />
-            </Link>
-          </Button>
 
           {/* User Dropdown */}
           <DropdownMenu>
@@ -179,12 +174,6 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
                 <Link href="/settings">
                   <Settings className="h-4 w-4 mr-2" />
                   Account Settings
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/brand-configuration">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Brand Configuration
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />

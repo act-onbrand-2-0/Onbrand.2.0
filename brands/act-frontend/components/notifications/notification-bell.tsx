@@ -119,21 +119,52 @@ export function NotificationBell() {
   const handleNotificationClick = async (notification: Notification) => {
     setIsOpen(false);
 
-    // If this is a share notification with a share_id, auto-accept the share first
-    if (notification.share_id && 
-        (notification.type === 'conversation_shared' || notification.type === 'project_shared')) {
+    // If this is a share notification, auto-accept the share first
+    if (notification.type === 'conversation_shared' || notification.type === 'project_shared') {
       try {
-        const response = await fetch('/api/conversation-shares', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            shareId: notification.share_id,
-            action: 'accept',
-          }),
-        });
+        if (notification.share_id) {
+          // Accept by share_id
+          const response = await fetch('/api/conversation-shares', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              shareId: notification.share_id,
+              action: 'accept',
+            }),
+          });
 
-        if (!response.ok) {
-          console.error('Failed to auto-accept share');
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Failed to auto-accept share:', errorData);
+          } else {
+            console.log('Share accepted successfully');
+          }
+        } else if (notification.conversation_id) {
+          // Fallback: Accept by conversation_id if share_id is missing
+          const response = await fetch(`/api/conversation-shares?conversationId=${notification.conversation_id}&myShares=true`, {
+            method: 'GET',
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.shares && data.shares.length > 0) {
+              // Accept the first pending share
+              const pendingShare = data.shares.find((s: any) => s.status === 'pending');
+              if (pendingShare) {
+                const acceptResponse = await fetch('/api/conversation-shares', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    shareId: pendingShare.id,
+                    action: 'accept',
+                  }),
+                });
+                if (acceptResponse.ok) {
+                  console.log('Share accepted via fallback');
+                }
+              }
+            }
+          }
         }
       } catch (error) {
         console.error('Error accepting share:', error);

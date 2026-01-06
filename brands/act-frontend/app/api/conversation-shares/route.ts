@@ -74,6 +74,30 @@ export async function GET(request: NextRequest) {
     }
 
     if (conversationId) {
+      const myShares = searchParams.get('myShares');
+      
+      if (myShares === 'true') {
+        // Get shares where current user is the recipient (for auto-accepting)
+        const { data: shares, error } = await supabase
+          .from('conversation_shares')
+          .select('*')
+          .eq('conversation_id', conversationId)
+          .eq('shared_with', user.id);
+
+        if (error) {
+          console.error('Error fetching my shares:', error);
+          return NextResponse.json({ error: 'Failed to fetch shares' }, { status: 500 });
+        }
+
+        return NextResponse.json({ 
+          shares: (shares || []).map((share: any) => ({
+            id: share.id,
+            status: share.status,
+            conversationId: share.conversation_id,
+          }))
+        });
+      }
+      
       // Get shares for a specific conversation (only if user owns it)
       const { data: shares, error } = await supabase
         .from('conversation_shares')

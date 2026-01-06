@@ -116,8 +116,29 @@ export function NotificationBell() {
     deleteNotification,
   } = useNotifications();
 
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = async (notification: Notification) => {
     setIsOpen(false);
+
+    // If this is a share notification with a share_id, auto-accept the share first
+    if (notification.share_id && 
+        (notification.type === 'conversation_shared' || notification.type === 'project_shared')) {
+      try {
+        const response = await fetch('/api/conversation-shares', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shareId: notification.share_id,
+            action: 'accept',
+          }),
+        });
+
+        if (!response.ok) {
+          console.error('Failed to auto-accept share');
+        }
+      } catch (error) {
+        console.error('Error accepting share:', error);
+      }
+    }
 
     // Navigate based on notification type
     if (notification.conversation_id) {

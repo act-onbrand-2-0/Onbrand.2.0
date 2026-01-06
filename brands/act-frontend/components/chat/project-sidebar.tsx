@@ -59,6 +59,7 @@ import {
   Copy,
   Check,
   Link as LinkIcon,
+  Mail,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
@@ -1232,7 +1233,7 @@ function ConversationItem({
         const data = await sharesRes.json();
         setExistingShares(data.shares || []);
         // Pre-select users who already have access
-        const sharedUserIds = new Set((data.shares || []).map((s: ShareRecord) => s.userId));
+        const sharedUserIds = new Set<string>((data.shares || []).map((s: ShareRecord) => s.userId));
         setSelectedMembers(sharedUserIds);
       }
     } catch (error) {
@@ -1567,43 +1568,57 @@ function ConversationItem({
                   )}
                 </Button>
               )}
+            </div>
 
-              {/* Share by Email */}
-              <div className="pt-3 border-t">
-                <Label className="text-xs text-muted-foreground">Share with anyone by email</Label>
-                <div className="flex gap-2 mt-2">
-                  <Input
-                    type="email"
-                    placeholder="Enter email address..."
-                    value={shareEmail}
-                    onChange={(e) => {
-                      setShareEmail(e.target.value);
-                      setEmailShareError(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleShareByEmail();
-                      }
-                    }}
-                    className="flex-1 h-9 text-sm"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={handleShareByEmail}
-                    disabled={!shareEmail.trim() || isEmailSharing}
-                  >
-                    {isEmailSharing ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Share2 className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-                {emailShareError && (
-                  <p className="text-xs text-destructive mt-1">{emailShareError}</p>
-                )}
+            <Separator />
+
+            {/* Share by Email - Prominent Section */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">Share by Email</Label>
               </div>
+              
+              <p className="text-sm text-muted-foreground">
+                Enter an email to share with someone not in your team. They must have an account.
+              </p>
+
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="Enter email address..."
+                  value={shareEmail}
+                  onChange={(e) => {
+                    setShareEmail(e.target.value);
+                    setEmailShareError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleShareByEmail();
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleShareByEmail}
+                  disabled={!shareEmail.trim() || isEmailSharing}
+                >
+                  {isEmailSharing ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mail className="mr-2 h-4 w-4" />
+                  )}
+                  {isEmailSharing ? 'Sending...' : 'Send'}
+                </Button>
+              </div>
+              {emailShareError && (
+                <p className="text-xs text-destructive mt-1">{emailShareError}</p>
+              )}
+            </div>
+
+            {/* Currently Shared With - moved to its own section */}
+            <div className="space-y-3">
 
               {/* Currently Shared With */}
               {existingShares.length > 0 && (

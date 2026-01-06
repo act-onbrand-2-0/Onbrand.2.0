@@ -48,6 +48,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { NotificationBell } from "@/components/notifications";
 
 const menuItems = [
   {
@@ -150,13 +151,16 @@ export function DashboardSidebar({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <button 
-              onClick={toggleSidebar}
-              className="ml-auto p-1 hover:bg-accent rounded transition-colors"
-              title="Collapse sidebar"
-            >
-              <PanelLeft className="size-4 text-muted-foreground" />
-            </button>
+            <div className="ml-auto flex items-center gap-1">
+              <NotificationBell />
+              <button 
+                onClick={toggleSidebar}
+                className="p-1 hover:bg-accent rounded transition-colors"
+                title="Collapse sidebar"
+              >
+                <PanelLeft className="size-4 text-muted-foreground" />
+              </button>
+            </div>
           </div>
         </SidebarHeader>
       )}

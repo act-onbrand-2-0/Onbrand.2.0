@@ -1192,6 +1192,11 @@ function ConversationItem({
   const [isSharing, setIsSharing] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   
+  // Email sharing state
+  const [shareEmail, setShareEmail] = useState('');
+  const [emailShareError, setEmailShareError] = useState<string | null>(null);
+  const [isEmailSharing, setIsEmailSharing] = useState(false);
+  
   const isShared = existingShares.length > 0;
 
   // Fetch shares on mount to show icon
@@ -1289,6 +1294,48 @@ function ConversationItem({
       alert('Failed to share conversation. Please try again.');
     } finally {
       setIsSharing(false);
+    }
+  };
+
+  const handleShareByEmail = async () => {
+    if (!shareEmail.trim()) return;
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(shareEmail.trim())) {
+      setEmailShareError('Please enter a valid email address');
+      return;
+    }
+    
+    setIsEmailSharing(true);
+    setEmailShareError(null);
+    
+    try {
+      const response = await fetch('/api/conversation-shares', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          email: shareEmail.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setEmailShareError(data.details || data.error || 'Failed to share');
+        return;
+      }
+      
+      setShareEmail('');
+      setShareSuccess(true);
+      await loadShareData();
+      setTimeout(() => setShareSuccess(false), 3000);
+    } catch (error) {
+      console.error('Error sharing by email:', error);
+      setEmailShareError('Failed to share. Please try again.');
+    } finally {
+      setIsEmailSharing(false);
     }
   };
 
@@ -1520,6 +1567,43 @@ function ConversationItem({
                   )}
                 </Button>
               )}
+
+              {/* Share by Email */}
+              <div className="pt-3 border-t">
+                <Label className="text-xs text-muted-foreground">Share with anyone by email</Label>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    type="email"
+                    placeholder="Enter email address..."
+                    value={shareEmail}
+                    onChange={(e) => {
+                      setShareEmail(e.target.value);
+                      setEmailShareError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleShareByEmail();
+                      }
+                    }}
+                    className="flex-1 h-9 text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleShareByEmail}
+                    disabled={!shareEmail.trim() || isEmailSharing}
+                  >
+                    {isEmailSharing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Share2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                {emailShareError && (
+                  <p className="text-xs text-destructive mt-1">{emailShareError}</p>
+                )}
+              </div>
 
               {/* Currently Shared With */}
               {existingShares.length > 0 && (

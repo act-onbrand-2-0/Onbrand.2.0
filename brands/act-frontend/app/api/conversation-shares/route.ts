@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/conversation-shares - Share conversation with selected users
+// POST /api/conversation-shares - Share conversation with selected users or by email
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -122,11 +122,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { conversationId, userIds, message } = body;
+    // Create service client for user lookups by email
+    const serviceSupabase = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-    if (!conversationId || !userIds || !Array.isArray(userIds) || userIds.length === 0) {
-      return NextResponse.json({ error: 'conversationId and userIds array are required' }, { status: 400 });
+    const body = await request.json();
+    const { conversationId, userIds, email, message } = body;
+
+    // Support both userIds array and single email
+    let targetUserIds: string[] = userIds || [];
+
+    // If email is provided, look up the user by email
+    if (email && typeof email === 'string') {
+      const { data: usersData, error: listError } = await serviceSupabase.auth.admin.listUsers();
+      
+      if (listError) {
+        console.error('Error looking up user by email:', listError);
+        return NextResponse.json({ error: 'Failed to look up user' }, { status: 500 });
+      }
+
+      const foundUser = usersData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+      
+      if (!foundUser) {
+        return NextResponse.json({ 
+          error: 'User not found', 
+          details: 'No user with that email address exists in the system' 
+        }, { status: 404 });
+      }
+
+      if (foundUser.id === user.id) {
+        return NextResponse.json({ 
+          error: 'Cannot share with yourself' 
+        }, { status: 400 });
+      }
+
+      targetUserIds = [foundUser.id];
+    }
+
+    if (!conversationId || targetUserIds.length === 0) {
+      return NextResponse.json({ error: 'conversationId and either userIds array or email are required' }, { status: 400 });
     }
 
     // Verify user owns the conversation and get brand_id
@@ -145,7 +181,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create share records for each user
-    const shares = userIds.map((userId: string) => ({
+    const shares = targetUserIds.map((userId: string) => ({
       conversation_id: conversationId,
       shared_by: user.id,
       shared_with: userId,

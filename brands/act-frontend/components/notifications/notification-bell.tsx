@@ -142,9 +142,9 @@ export function NotificationBell() {
 
     // Navigate based on notification type
     if (notification.conversation_id) {
-      router.push(`/dashboard/chat?c=${notification.conversation_id}`);
+      router.push(`/chat?c=${notification.conversation_id}`);
     } else if (notification.project_id) {
-      router.push(`/dashboard/chat?project=${notification.project_id}`);
+      router.push(`/chat?project=${notification.project_id}`);
     }
   };
 

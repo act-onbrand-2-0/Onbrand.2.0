@@ -482,7 +482,7 @@ export default function ChatPage() {
           if (targetConv) {
             setCurrentConversation(targetConv);
             // Clear the URL param after selecting (cleaner URL)
-            router.replace('/dashboard/chat', { scroll: false });
+            router.replace('/chat', { scroll: false });
           }
         }
       }

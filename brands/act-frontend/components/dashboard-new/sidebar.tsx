@@ -59,7 +59,7 @@ const menuItems = [
   {
     title: "Chat",
     icon: Sparkles,
-    href: "/dashboard/chat",
+    href: "/chat",
   },
   {
     title: "Brand Config",

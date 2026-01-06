@@ -63,27 +63,38 @@ export async function GET(request: NextRequest) {
 
 // POST /api/project-shares - Share a project with users
 export async function POST(request: NextRequest) {
+  console.log('=== PROJECT SHARE POST START ===');
   try {
     const supabase = await createClient();
     
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+    console.log('Auth check:', { userId: user?.id, authError: authError?.message });
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check environment variables
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    console.log('Env check:', { hasUrl: !!supabaseUrl, hasServiceKey: !!serviceKey });
+    
+    if (!supabaseUrl || !serviceKey) {
+      console.error('Missing environment variables');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+
     // Create service client for user lookups
-    const serviceSupabase = createServiceClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const serviceSupabase = createServiceClient(supabaseUrl, serviceKey);
 
     const body = await request.json();
     const { projectId, userIds, email, message } = body;
+    console.log('Request body:', { projectId, userIds, email, message });
 
     let targetUserIds: string[] = userIds || [];
 
     // If email is provided, look up the user
     if (email && typeof email === 'string') {
+      console.log('Looking up user by email:', email);
       const { data: usersData, error: listError } = await serviceSupabase.auth.admin.listUsers();
       
       if (listError) {
@@ -91,15 +102,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to look up user' }, { status: 500 });
       }
 
+      console.log('Found users count:', usersData?.users?.length || 0);
       const foundUser = usersData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
       
       if (!foundUser) {
+        console.log('User not found for email:', email);
         return NextResponse.json({ 
           error: 'User not found', 
           details: 'No user with that email address exists in the system' 
         }, { status: 404 });
       }
 
+      console.log('Found user:', foundUser.id);
       if (foundUser.id === user.id) {
         return NextResponse.json({ error: 'Cannot share with yourself' }, { status: 400 });
       }
@@ -108,33 +122,42 @@ export async function POST(request: NextRequest) {
     }
 
     if (!projectId || targetUserIds.length === 0) {
+      console.log('Missing required params:', { projectId, targetUserIdsLength: targetUserIds.length });
       return NextResponse.json({ error: 'projectId and either userIds or email are required' }, { status: 400 });
     }
 
     // Verify user owns the project
+    console.log('Verifying project ownership:', projectId);
     const { data: project, error: projError } = await supabase
       .from('projects')
       .select('id, user_id, brand_id, name')
       .eq('id', projectId)
       .single();
 
+    console.log('Project lookup result:', { project: project?.id, projError: projError?.message });
     if (projError || !project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Project not found', details: projError?.message }, { status: 404 });
     }
 
     if (project.user_id !== user.id) {
+      console.log('Ownership mismatch:', { projectUserId: project.user_id, currentUserId: user.id });
       return NextResponse.json({ error: 'You do not own this project' }, { status: 403 });
     }
+    console.log('Project ownership verified:', project.name);
 
     // Check for existing shares
-    const { data: existingShares } = await serviceSupabase
+    console.log('Checking existing shares for project:', projectId);
+    const { data: existingShares, error: existingError } = await serviceSupabase
       .from('project_shares')
       .select('shared_with')
       .eq('project_id', projectId)
       .in('shared_with', targetUserIds);
 
+    console.log('Existing shares check:', { count: existingShares?.length || 0, error: existingError?.message });
+    
     const existingUserIds = new Set(existingShares?.map(s => s.shared_with) || []);
     const newUserIds = targetUserIds.filter(id => !existingUserIds.has(id));
+    console.log('New users to share with:', newUserIds.length);
 
     if (newUserIds.length === 0) {
       return NextResponse.json({ 
@@ -154,6 +177,7 @@ export async function POST(request: NextRequest) {
       status: 'pending',
     }));
 
+    console.log('Inserting shares:', JSON.stringify(shares));
     const { data: createdShares, error: insertError } = await serviceSupabase
       .from('project_shares')
       .insert(shares)
@@ -165,14 +189,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to share project', details: insertError.message }, { status: 500 });
     }
 
+    console.log('=== PROJECT SHARE SUCCESS ===', createdShares?.length);
     return NextResponse.json({ 
       success: true, 
       sharesCreated: createdShares?.length || 0,
       projectName: project.name
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Project share creation error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error stack:', error?.stack);
+    return NextResponse.json({ error: 'Internal server error', details: error?.message }, { status: 500 });
   }
 }
 

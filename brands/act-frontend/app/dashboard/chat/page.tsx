@@ -568,14 +568,38 @@ export default function ChatPage() {
     async function fetchMessages() {
       if (!currentConversation) return;
       
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', currentConversation.id)
-        .order('created_at', { ascending: true });
+      // Check if this is a shared conversation (user doesn't own it)
+      const isSharedConversation = currentConversation.user_id !== userId;
+      
+      let data: any[] | null = null;
+      let error: any = null;
+      
+      if (isSharedConversation) {
+        // Use API endpoint for shared conversations (bypasses RLS)
+        try {
+          const response = await fetch(`/api/shared-conversation/messages?conversationId=${currentConversation.id}`);
+          if (response.ok) {
+            const result = await response.json();
+            data = result.messages;
+          } else {
+            error = { message: 'Failed to fetch shared messages' };
+          }
+        } catch (err) {
+          error = { message: 'Error fetching shared messages' };
+        }
+      } else {
+        // Direct Supabase query for user's own conversations
+        const result = await supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', currentConversation.id)
+          .order('created_at', { ascending: true });
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
-        console.error('Failed to fetch messages:', error.message, error.details, error.hint);
+        console.error('Failed to fetch messages:', error.message);
         return;
       }
       

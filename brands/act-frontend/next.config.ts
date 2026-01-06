@@ -2,6 +2,15 @@
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
+  // Rewrite /chat to /dashboard/chat so URL stays clean
+  async rewrites() {
+    return [
+      {
+        source: '/chat',
+        destination: '/dashboard/chat',
+      },
+    ];
+  },
   // Enable domain handling for multi-tenant subdomains
   async headers() {
     return [

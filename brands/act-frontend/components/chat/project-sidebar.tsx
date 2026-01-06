@@ -206,6 +206,12 @@ export function ProjectSidebar({
     conv => !currentUserId || !conv.user_id || conv.user_id === currentUserId
   );
 
+  // Debug logging
+  console.log('Sidebar - currentUserId:', currentUserId);
+  console.log('Sidebar - total conversations:', conversations.length);
+  console.log('Sidebar - shared conversations:', sharedConversations.length, sharedConversations.map(c => ({ id: c.id, user_id: c.user_id, title: c.title })));
+  console.log('Sidebar - owned conversations:', ownedConversations.length);
+
   // Group owned conversations by project
   // Conversations in default projects go to 'uncategorized' (shown in "General" section)
   const conversationsByProject = ownedConversations.reduce(

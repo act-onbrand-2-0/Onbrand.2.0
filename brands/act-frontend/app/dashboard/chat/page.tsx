@@ -503,6 +503,9 @@ export default function ChatPage() {
         if (sharedResponse.ok) {
           const sharedData = await sharedResponse.json();
           sharedConversations = sharedData.conversations || [];
+          console.log('Fetched shared conversations:', sharedConversations.length, sharedConversations);
+        } else {
+          console.error('Failed to fetch shared conversations:', sharedResponse.status);
         }
       } catch (err) {
         console.error('Error fetching shared conversations:', err);

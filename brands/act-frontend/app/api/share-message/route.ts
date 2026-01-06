@@ -50,13 +50,13 @@ function generateShareEmailHtml(senderName: string, content: string): string {
     </div>
     
     <p style="margin: 20px 0 0 0; color: #9ca3af; font-size: 14px;">
-      This message was shared via ACT Onbrand.
+      This message was shared via Onbrand AI.
     </p>
   </div>
   
   <div style="background: #1f2937; padding: 20px; border-radius: 0 0 12px 12px; text-align: center;">
     <p style="margin: 0; color: #9ca3af; font-size: 12px;">
-      © ${new Date().getFullYear()} ACT Onbrand. All rights reserved.
+      © ${new Date().getFullYear()} Onbrand AI. All rights reserved.
     </p>
   </div>
 </body>
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
         .map(async (recipient) => {
           try {
             await resend.emails.send({
-              from: process.env.RESEND_FROM_EMAIL || 'ACT Onbrand <onboarding@resend.dev>',
+              from: process.env.RESEND_FROM_EMAIL || 'Onbrand AI <onboarding@resend.dev>',
               to: recipient.email,
               subject: `${senderName} shared a message with you`,
               html: emailHtml,

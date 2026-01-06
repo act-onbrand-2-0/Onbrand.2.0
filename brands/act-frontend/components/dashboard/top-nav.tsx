@@ -76,7 +76,7 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
       <div className="relative flex h-16 items-center px-4 md:px-6">
         {/* Logo - Left aligned */}
         <Link href="/dashboard" className="flex items-center">
-          <span className="font-semibold text-xl">ACT.onbrand</span>
+          <span className="font-semibold text-xl">Onbrand AI</span>
         </Link>
 
         {/* Navigation - Centered */}

@@ -76,7 +76,7 @@ const folders = [
 
 // Placeholder brands for UI - feature not built yet
 const placeholderBrands = [
-  { id: '1', name: 'ACT.onbrand', initials: 'AO', color: 'bg-primary' },
+  { id: '1', name: 'Onbrand AI', initials: 'OA', color: 'bg-primary' },
   { id: '2', name: 'Oddido', initials: 'OD', color: 'bg-blue-500' },
   { id: '3', name: 'Zwinc', initials: 'ZW', color: 'bg-orange-500' },
 ];
@@ -90,7 +90,7 @@ interface DashboardSidebarProps extends React.ComponentProps<typeof Sidebar> {
 export function DashboardSidebar({
   userName,
   userEmail,
-  brandName = 'ACT.onbrand',
+  brandName = 'Onbrand AI',
   ...props
 }: DashboardSidebarProps) {
   const [foldersOpen, setFoldersOpen] = React.useState(true);

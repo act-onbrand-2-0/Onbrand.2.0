@@ -513,6 +513,25 @@ export default function ChatPage() {
         console.error('Error fetching shared conversations:', err);
       }
 
+      // Auto-accept pending project shares before fetching
+      try {
+        const pendingProjSharesRes = await fetch('/api/project-shares?myShares=true');
+        if (pendingProjSharesRes.ok) {
+          const pendingData = await pendingProjSharesRes.json();
+          const pendingShares = (pendingData.shares || []).filter((s: any) => s.status === 'pending');
+          for (const share of pendingShares) {
+            await fetch('/api/project-shares', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ shareId: share.id, action: 'accept' }),
+            });
+            console.log('Project share accepted:', share.id);
+          }
+        }
+      } catch (err) {
+        console.error('Error auto-accepting project shares:', err);
+      }
+
       // Fetch shared projects and their conversations
       let sharedProjects: any[] = [];
       let sharedProjectConversations: any[] = [];

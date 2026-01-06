@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const resend = createResendClient();
     
     const data = await resend.emails.send({
-      from: 'ACT Onbrand <onboarding@resend.dev>', // Update with your verified domain
+      from: 'Onbrand AI <onboarding@resend.dev>', // Update with your verified domain
       to,
       subject,
       html,

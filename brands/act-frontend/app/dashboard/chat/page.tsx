@@ -1150,23 +1150,58 @@ export default function ChatPage() {
       setDbMessages((prev) => [...prev, data]);
       
       // Broadcast the message for immediate real-time delivery to other users
-      // Use the existing subscribed channel from chatChannelRef for reliable delivery
+      // Try multiple methods to ensure broadcast works
+      console.log('Attempting to broadcast message, chatChannelRef.current:', !!chatChannelRef.current, 'conversation_id:', message.conversation_id);
+      
       if (chatChannelRef.current) {
-        chatChannelRef.current.send({
-          type: 'broadcast',
-          event: 'new_message',
-          payload: {
-            ...data,
-            sender_name: message.role === 'user' ? userName : 'Assistant',
-            sender_email: message.role === 'user' ? userEmail : null,
+        try {
+          await chatChannelRef.current.send({
+            type: 'broadcast',
+            event: 'new_message',
+            payload: {
+              ...data,
+              sender_name: message.role === 'user' ? userName : 'Assistant',
+              sender_email: message.role === 'user' ? userEmail : null,
+            }
+          });
+          console.log('Message broadcasted via subscribed channel successfully');
+        } catch (err) {
+          console.error('Failed to broadcast via ref, trying direct channel:', err);
+          // Fallback: try creating a new channel connection
+          try {
+            const fallbackChannel = supabase.channel(`chat-room-${message.conversation_id}`);
+            await fallbackChannel.send({
+              type: 'broadcast',
+              event: 'new_message',
+              payload: {
+                ...data,
+                sender_name: message.role === 'user' ? userName : 'Assistant',
+                sender_email: message.role === 'user' ? userEmail : null,
+              }
+            });
+            console.log('Message broadcasted via fallback channel');
+          } catch (fallbackErr) {
+            console.error('Fallback broadcast also failed:', fallbackErr);
           }
-        }).then(() => {
-          console.log('Message broadcasted via subscribed channel');
-        }).catch((err) => {
-          console.error('Failed to broadcast message:', err);
-        });
+        }
       } else {
-        console.log('No chat channel available for broadcast - message saved to DB only');
+        console.log('No chat channel ref - trying direct channel');
+        // Try creating a channel and sending directly
+        try {
+          const directChannel = supabase.channel(`chat-room-${message.conversation_id}`);
+          await directChannel.send({
+            type: 'broadcast',
+            event: 'new_message',
+            payload: {
+              ...data,
+              sender_name: message.role === 'user' ? userName : 'Assistant',
+              sender_email: message.role === 'user' ? userEmail : null,
+            }
+          });
+          console.log('Message broadcasted via direct channel');
+        } catch (err) {
+          console.error('Direct channel broadcast failed:', err);
+        }
       }
     }
 

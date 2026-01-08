@@ -68,3 +68,6 @@ Thumbs.db
 
 # pnpm local store
 .pnpm-store/
+
+# Local Netlify folder
+.netlify

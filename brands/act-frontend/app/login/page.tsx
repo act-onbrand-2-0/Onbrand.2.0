@@ -66,11 +66,17 @@ function LoginContent() {
       setError('');
       
       const brandId = detectBrandId();
+      const callbackUrl = getBrandCallbackUrl();
+      
+      // Debug: Log what URL is being used
+      console.log('[OAuth Debug] window.location.origin:', window.location.origin);
+      console.log('[OAuth Debug] callbackUrl:', callbackUrl);
+      alert(`OAuth callback will use: ${callbackUrl}`);
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'azure',
         options: {
-          redirectTo: getBrandCallbackUrl(),
+          redirectTo: callbackUrl,
           scopes: 'email openid profile',
           queryParams: {
             brand_id: brandId,

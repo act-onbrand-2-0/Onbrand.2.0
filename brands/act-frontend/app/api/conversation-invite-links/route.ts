@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
         expiresAt: link.expires_at,
         isActive: link.is_active,
         createdAt: link.created_at,
-        url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/chat/join/${link.token}`,
+        url: `${process.env.NEXT_PUBLIC_SITE_URL || process.env.DEPLOY_PRIME_URL || process.env.URL || 'https://onbrandai.app'}/chat/join/${link.token}`,
       })),
     });
   } catch (error) {
@@ -178,7 +178,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create invite link' }, { status: 500 });
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+    // Get proper base URL (not localhost)
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL 
+      || process.env.DEPLOY_PRIME_URL 
+      || process.env.DEPLOY_URL 
+      || process.env.URL 
+      || process.env.NEXT_PUBLIC_APP_URL 
+      || 'https://onbrandai.app';
     
     return NextResponse.json({
       success: true,

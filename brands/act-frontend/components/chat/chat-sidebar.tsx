@@ -377,9 +377,15 @@ function ConversationItem({
   }, [conversation.id]);
   
   // Team share URL - only accessible by users in the same brand
-  const teamShareUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}/chat/${conversation.id}`
-    : '';
+  // Use production URL, not localhost
+  const getBaseUrl = () => {
+    if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+    if (typeof window !== 'undefined' && !window.location.origin.includes('localhost')) {
+      return window.location.origin;
+    }
+    return 'https://onbrandai.app';
+  };
+  const teamShareUrl = `${getBaseUrl()}/chat/${conversation.id}`;
 
   const handleCopyTeamUrl = async () => {
     await navigator.clipboard.writeText(teamShareUrl);

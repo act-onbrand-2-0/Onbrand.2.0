@@ -61,6 +61,7 @@ import {
   Link as LinkIcon,
   Mail,
   Search,
+  Eye,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
@@ -174,6 +175,24 @@ export function ProjectSidebar({
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchDialog, setShowSearchDialog] = useState(false);
+  
+  // Collapsible sidebar sections
+  const [sectionCollapsed, setSectionCollapsed] = useState<{
+    folders: boolean;
+    chatHistory: boolean;
+    sharedWithMe: boolean;
+  }>({
+    folders: false,
+    chatHistory: false,
+    sharedWithMe: false,
+  });
+  
+  const toggleSection = (section: 'folders' | 'chatHistory' | 'sharedWithMe') => {
+    setSectionCollapsed(prev => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
 
   // Filter conversations by search query
   const filteredConversations = searchQuery.trim()
@@ -644,14 +663,21 @@ export function ProjectSidebar({
             {/* Folders Section */}
             {projects.filter(p => !p.is_default).length > 0 && (
               <div className="mt-4">
-                <h3 className="px-3 py-2 text-xs font-medium text-muted-foreground">
+                <button
+                  onClick={() => toggleSection('folders')}
+                  className="w-full flex items-center gap-1 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronRight className={cn(
+                    "size-3 transition-transform",
+                    !sectionCollapsed.folders && "rotate-90"
+                  )} />
                   Folders
-                </h3>
+                </button>
               </div>
             )}
 
             {/* Projects (excluding default) */}
-            {projects.filter(p => !p.is_default).map((project) => (
+            {!sectionCollapsed.folders && projects.filter(p => !p.is_default).map((project) => (
               <ProjectItem
                 key={project.id}
                 project={project}
@@ -679,9 +705,17 @@ export function ProjectSidebar({
             {/* Chat history (uncategorized conversations) */}
             {conversationsByProject['uncategorized']?.length > 0 && (
               <div className="mt-4">
-                <h3 className="px-3 py-2 text-xs font-medium text-muted-foreground">
+                <button
+                  onClick={() => toggleSection('chatHistory')}
+                  className="w-full flex items-center gap-1 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronRight className={cn(
+                    "size-3 transition-transform",
+                    !sectionCollapsed.chatHistory && "rotate-90"
+                  )} />
                   Chat history
-                </h3>
+                </button>
+                {!sectionCollapsed.chatHistory && (
                 <div className="space-y-1">
                   {conversationsByProject['uncategorized'].map((conv) => (
                     <ConversationItem
@@ -709,17 +743,27 @@ export function ProjectSidebar({
                     />
                   ))}
                 </div>
+                )}
               </div>
             )}
 
             {/* Shared with me section */}
             {(sharedProjects.length > 0 || sharedConversationsWithoutProject.length > 0) && (
               <div className="mt-4">
-                <h3 className="px-3 py-2 text-xs font-medium text-muted-foreground flex items-center gap-2">
-                  <Users className="size-3" />
+                <button
+                  onClick={() => toggleSection('sharedWithMe')}
+                  className="w-full flex items-center gap-1 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronRight className={cn(
+                    "size-3 transition-transform",
+                    !sectionCollapsed.sharedWithMe && "rotate-90"
+                  )} />
+                  <Users className="size-3 ml-1" />
                   Shared with me
-                </h3>
+                </button>
 
+                {!sectionCollapsed.sharedWithMe && (
+                <>
                 {/* Shared Folders */}
                 {sharedProjects.length > 0 && (
                   <div className="space-y-1 mb-2">
@@ -771,6 +815,8 @@ export function ProjectSidebar({
                       />
                     ))}
                   </div>
+                )}
+                </>
                 )}
               </div>
             )}
@@ -1399,7 +1445,15 @@ function ProjectItem({
       {isExpanded && conversations.length === 0 && files.length === 0 && (
         <div className="ml-6 py-2 text-xs text-muted-foreground">
           No chats in {project.name}.{' '}
-          <button className="underline hover:no-underline" onClick={onNewChat}>
+          <button 
+            type="button"
+            className="underline hover:no-underline text-primary cursor-pointer" 
+            onClick={(e) => {
+              e.stopPropagation();
+              console.log('Start one clicked for project:', project.name);
+              onNewChat();
+            }}
+          >
             Start one
           </button>
         </div>
@@ -1713,6 +1767,7 @@ interface ShareRecord {
   name: string;
   email: string;
   status: 'pending' | 'accepted' | 'declined';
+  permission?: 'read' | 'write'; // 'read' = view only, 'write' = collaborative
 }
 
 // Conversation item component with team member selection sharing
@@ -1754,6 +1809,9 @@ function ConversationItem({
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
+  
+  // Permission selection for collaborative chats
+  const [sharePermission, setSharePermission] = useState<'read' | 'write'>('read');
   
   // Email sharing state
   const [shareEmail, setShareEmail] = useState('');
@@ -1839,6 +1897,7 @@ function ConversationItem({
           body: JSON.stringify({
             conversationId: conversation.id,
             userIds: newMembers,
+            permission: sharePermission, // 'read' for view-only, 'write' for collaborative
           }),
         });
 
@@ -1880,6 +1939,7 @@ function ConversationItem({
         body: JSON.stringify({
           conversationId: conversation.id,
           email: shareEmail.trim(),
+          permission: sharePermission, // 'read' for view-only, 'write' for collaborative
         }),
       });
 
@@ -2102,6 +2162,43 @@ function ConversationItem({
           </DialogHeader>
 
           <div className="space-y-6 py-4">
+            {/* Permission Selection */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Access Level</Label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSharePermission('read')}
+                  className={cn(
+                    "flex-1 flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-colors",
+                    sharePermission === 'read' 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border hover:border-muted-foreground/50"
+                  )}
+                >
+                  <Eye className="h-5 w-5" />
+                  <span className="text-sm font-medium">View Only</span>
+                  <span className="text-xs text-muted-foreground">Can read messages</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSharePermission('write')}
+                  className={cn(
+                    "flex-1 flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-colors",
+                    sharePermission === 'write' 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border hover:border-muted-foreground/50"
+                  )}
+                >
+                  <Users className="h-5 w-5" />
+                  <span className="text-sm font-medium">Collaborate</span>
+                  <span className="text-xs text-muted-foreground">Can send messages</span>
+                </button>
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Team Member Selection */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
@@ -2241,8 +2338,26 @@ function ConversationItem({
                   <p className="text-xs text-muted-foreground mb-2">Currently shared with:</p>
                   <div className="space-y-1">
                     {existingShares.map((share) => (
-                      <div key={share.id} className="flex items-center justify-between text-xs bg-muted/50 rounded px-2 py-1">
-                        <span>{share.name} ({share.status})</span>
+                      <div key={share.id} className="flex items-center justify-between text-xs bg-muted/50 rounded px-2 py-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{share.name}</span>
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded text-[10px]",
+                            share.permission === 'write' 
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" 
+                              : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                          )}>
+                            {share.permission === 'write' ? 'Collaborate' : 'View Only'}
+                          </span>
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded text-[10px]",
+                            share.status === 'accepted' ? "bg-green-100 text-green-700" :
+                            share.status === 'pending' ? "bg-yellow-100 text-yellow-700" :
+                            "bg-red-100 text-red-700"
+                          )}>
+                            {share.status}
+                          </span>
+                        </div>
                         <button
                           onClick={() => handleRemoveShare(share.id)}
                           className="text-muted-foreground hover:text-destructive"

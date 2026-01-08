@@ -392,6 +392,11 @@ interface ChatMessageProps {
   isStreaming?: boolean;
   attachments?: MessageAttachment[];
   toolInvocations?: ToolInvocation[];
+  // Collaborative chat props
+  senderName?: string;
+  senderEmail?: string;
+  isCurrentUser?: boolean;
+  isCollaborative?: boolean;
 }
 
 export function ChatMessage({
@@ -400,6 +405,10 @@ export function ChatMessage({
   isStreaming = false,
   attachments,
   toolInvocations,
+  senderName,
+  senderEmail,
+  isCurrentUser = true,
+  isCollaborative = false,
 }: ChatMessageProps) {
   const isUser = role === 'user';
   const hasAttachments = attachments && attachments.length > 0;
@@ -434,6 +443,22 @@ export function ChatMessage({
             'items-end': isUser,
           })}
         >
+          {/* Sender name for collaborative chats */}
+          {isCollaborative && isUser && senderName && (
+            <div className={cn('flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5', {
+              'justify-end': isUser,
+            })}>
+              <span className={cn('font-medium', {
+                'text-primary': isCurrentUser,
+              })}>
+                {isCurrentUser ? 'You' : senderName}
+              </span>
+              {!isCurrentUser && senderEmail && (
+                <span className="text-muted-foreground/60">({senderEmail})</span>
+              )}
+            </div>
+          )}
+
           {/* Attachments (shown above text for user messages) */}
           {hasAttachments && (
             <div className="flex flex-wrap gap-2 mb-2" style={{ justifyContent: isUser ? 'flex-end' : 'flex-start' }}>

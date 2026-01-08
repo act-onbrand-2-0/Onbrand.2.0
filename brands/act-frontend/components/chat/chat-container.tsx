@@ -113,6 +113,9 @@ interface ChatContainerProps {
   
   // Read-only mode for single shared chats
   isReadOnly?: boolean;
+  
+  // Collaborative chat mode (multiple users can send messages)
+  isCollaborativeChat?: boolean;
 }
 
 export function ChatContainer({
@@ -163,6 +166,7 @@ export function ChatContainer({
 	mcpServers,
 	onMcpServersLoaded,
 	isReadOnly = false,
+	isCollaborativeChat = false,
 }: ChatContainerProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
@@ -243,6 +247,7 @@ export function ChatContainer({
               activeToolCall={activeToolCall}
               isDeepResearchActive={isDeepResearchActive}
               userName={userName}
+              isCollaborativeChat={isCollaborativeChat}
             />
 
             {/* Suggested Actions - Show when no messages and input is empty */}

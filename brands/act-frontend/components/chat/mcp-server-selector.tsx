@@ -168,7 +168,7 @@ export function MCPServerSelector({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuLabel className="flex items-center justify-between">
-          <span>MCP Servers</span>
+          <span>Connections</span>
           <div className="flex gap-1">
             <Button
               variant="ghost"
@@ -249,7 +249,7 @@ export function MCPServerSelector({
         
         {servers.length === 0 && !isLoading && (
           <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-            No MCP servers configured
+            No connections configured
           </div>
         )}
         
@@ -262,7 +262,7 @@ export function MCPServerSelector({
           }}
         >
           <Settings2 className="size-3.5" />
-          <span className="text-xs">Manage MCP Servers</span>
+          <span className="text-xs">Manage Connections</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -11,6 +11,11 @@ interface Message {
   content: string;
   attachments?: MessageAttachment[];
   toolInvocations?: ToolInvocation[];
+  // Collaborative chat fields
+  user_id?: string;
+  sender_name?: string;
+  sender_email?: string;
+  is_current_user?: boolean;
 }
 
 interface MessageListProps {
@@ -21,6 +26,7 @@ interface MessageListProps {
   activeToolCall?: string | null;
   isDeepResearchActive?: boolean;
   userName?: string;
+  isCollaborativeChat?: boolean;
 }
 
 export function MessageList({
@@ -31,6 +37,7 @@ export function MessageList({
   activeToolCall,
   isDeepResearchActive = false,
   userName,
+  isCollaborativeChat = false,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -79,6 +86,11 @@ export function MessageList({
               attachments={message.attachments}
               toolInvocations={message.toolInvocations}
               isStreaming={isStreaming && index === messages.length - 1 && message.role === 'assistant'}
+              // Collaborative chat props
+              senderName={message.sender_name}
+              senderEmail={message.sender_email}
+              isCurrentUser={message.is_current_user}
+              isCollaborative={isCollaborativeChat}
             />
           ))}
 

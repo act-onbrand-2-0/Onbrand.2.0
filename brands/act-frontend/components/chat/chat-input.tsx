@@ -56,7 +56,7 @@ const GoogleLogo = () => (
 export const AI_MODELS = [
   { id: 'claude-4.5', name: 'Claude 4.5', provider: 'Anthropic', icon: AnthropicLogo, supportsWebSearch: false, supportsDeepResearch: true },
   { id: 'gpt-5.2', name: 'GPT 5.2', provider: 'OpenAI', icon: OpenAILogo, supportsWebSearch: true, supportsDeepResearch: true },
-  { id: 'gemini-3.1', name: 'Gemini 3.1', provider: 'Google', icon: GoogleLogo, supportsWebSearch: true, supportsDeepResearch: true },
+  { id: 'gemini-3.1', name: 'Gemini 3.1', provider: 'Google', icon: GoogleLogo, supportsWebSearch: true, supportsDeepResearch: false },
 ] as const;
 
 export type ModelId = typeof AI_MODELS[number]['id'];
@@ -78,8 +78,8 @@ export interface MinimalProject {
 // Allowed file types
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'text/plain', 'text/markdown'];
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB (Claude's limit)
-const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10MB for documents
+const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB for images
+const MAX_DOCUMENT_SIZE = 50 * 1024 * 1024; // 50MB for documents
 
 // Predictive prompt suggestions - context-aware completions (300+ triggers)
 const PROMPT_SUGGESTIONS = [
@@ -913,38 +913,62 @@ export function ChatInput({
 									<Paperclip className="size-4" />
 									<span>Add files or images</span>
 								</DropdownMenuItem>
-								{/* Only show Web Search if current model supports it */}
-								{selectedModel.supportsWebSearch && (
-									<DropdownMenuItem
-										onClick={() => setUseWebSearch(prev => !prev)}
-										className="flex items-center justify-between gap-2"
-									>
-										<div className="flex items-center gap-2">
-											<Globe className="size-4" />
-											<span>Web Search</span>
-										</div>
-										{useWebSearch ? <Check className="size-4" /> : null}
-									</DropdownMenuItem>
-								)}
-								{/* Only show Deep Research if current model supports it */}
-								{selectedModel.supportsDeepResearch && (
-									<DropdownMenuItem
-										onClick={() => setUseDeepResearch(prev => !prev)}
-										className="flex items-center justify-between gap-2"
-									>
-										<div className="flex items-center gap-2">
-											<Sparkles className="size-4" />
-											<span>Deep Research</span>
-										</div>
-										{useDeepResearch ? <Check className="size-4" /> : null}
-									</DropdownMenuItem>
-								)}
-								{/* MCP Servers submenu */}
-								{mcpServers.length > 0 && (
+								{/* Web Search - auto-switch model if needed */}
+								<DropdownMenuItem
+									onClick={() => {
+										if (!useWebSearch) {
+											// Turning on - check if model supports it
+											if (!selectedModel.supportsWebSearch) {
+												// Find first model that supports web search
+												const webSearchModel = AI_MODELS.find(m => m.supportsWebSearch);
+												if (webSearchModel && onModelChange) {
+													onModelChange(webSearchModel.id);
+												}
+											}
+											setUseWebSearch(true);
+										} else {
+											setUseWebSearch(false);
+										}
+									}}
+									className="flex items-center justify-between gap-2"
+								>
+									<div className="flex items-center gap-2">
+										<Globe className="size-4" />
+										<span>Web Search</span>
+									</div>
+									{useWebSearch ? <Check className="size-4" /> : null}
+								</DropdownMenuItem>
+								{/* Deep Research - auto-switch model if needed */}
+								<DropdownMenuItem
+									onClick={() => {
+										if (!useDeepResearch) {
+											// Turning on - check if model supports it
+											if (!selectedModel.supportsDeepResearch) {
+												// Find first model that supports deep research
+												const deepResearchModel = AI_MODELS.find(m => m.supportsDeepResearch);
+												if (deepResearchModel && onModelChange) {
+													onModelChange(deepResearchModel.id);
+												}
+											}
+											setUseDeepResearch(true);
+										} else {
+											setUseDeepResearch(false);
+										}
+									}}
+									className="flex items-center justify-between gap-2"
+								>
+									<div className="flex items-center gap-2">
+										<Sparkles className="size-4" />
+										<span>Deep Research</span>
+									</div>
+									{useDeepResearch ? <Check className="size-4" /> : null}
+								</DropdownMenuItem>
+								{/* Connections submenu - only show enabled servers */}
+								{mcpServers.filter(s => s.enabled).length > 0 && (
 									<DropdownMenuSub>
 										<DropdownMenuSubTrigger className="flex items-center gap-2">
 											<Server className="size-4" />
-											<span>MCP Servers</span>
+											<span>Connections</span>
 											{selectedMcpServerIds.length > 0 && (
 												<span className="ml-auto text-xs text-muted-foreground">
 													{selectedMcpServerIds.length}
@@ -953,20 +977,13 @@ export function ChatInput({
 										</DropdownMenuSubTrigger>
 										<DropdownMenuSubContent className="w-56">
 											<TooltipProvider delayDuration={300}>
-												{mcpServers.map((server) => {
+												{mcpServers.filter(s => s.enabled).map((server) => {
 													const isSelected = selectedMcpServerIds.includes(server.id);
-													const isDisabled = !server.enabled;
 													const menuItem = (
 														<DropdownMenuItem
 															key={server.id}
-															onClick={() => {
-																if (!isDisabled) handleToggleMcpServer(server.id);
-															}}
-															disabled={isDisabled}
-															className={cn(
-																"flex items-center justify-between gap-2",
-																isDisabled && "opacity-50"
-															)}
+															onClick={() => handleToggleMcpServer(server.id)}
+															className="flex items-center justify-between gap-2"
 														>
 															<div className="flex items-center gap-2">
 																<Server className="size-4" />
@@ -994,20 +1011,33 @@ export function ChatInput({
 										</DropdownMenuSubContent>
 									</DropdownMenuSub>
 								)}
+								{/* Models submenu */}
+								<DropdownMenuSub>
+									<DropdownMenuSubTrigger className="flex items-center gap-2">
+										<selectedModel.icon />
+										<span>Models</span>
+									</DropdownMenuSubTrigger>
+									<DropdownMenuSubContent className="w-56">
+										{AI_MODELS.map((m) => (
+											<DropdownMenuItem
+												key={m.id}
+												onClick={() => onModelChange?.(m.id)}
+												className="flex items-center justify-between gap-3"
+											>
+												<div className="flex items-center gap-3">
+													<m.icon />
+													<div className="flex flex-col">
+														<div className="font-medium text-sm">{m.name}</div>
+														<div className="text-xs text-muted-foreground">{m.provider}</div>
+													</div>
+												</div>
+												{model === m.id && <Check className="size-4 shrink-0" />}
+											</DropdownMenuItem>
+										))}
+									</DropdownMenuSubContent>
+								</DropdownMenuSub>
 							</DropdownMenuContent>
 						</DropdownMenu>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
-              disabled={disabled || !isReady}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Paperclip className="size-4" />
-              <span className="sr-only">Attach file</span>
-            </Button>
             
             {/* Model Selector Dropdown */}
             <DropdownMenu open={isModelMenuOpen} onOpenChange={setIsModelMenuOpen}>
@@ -1079,7 +1109,7 @@ export function ChatInput({
 								className="group ml-1 inline-flex items-center gap-1.5 rounded-md bg-[#063EF8] px-2.5 py-1 text-xs text-white hover:bg-[#063EF8]/90 transition-colors"
 							>
 								<Sparkles className="size-3.5" />
-								<span>Research</span>
+								<span>Deep Research</span>
 							</button>
 						)}
 					{/* Project selected chip */}

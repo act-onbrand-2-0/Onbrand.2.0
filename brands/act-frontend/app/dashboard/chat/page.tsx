@@ -145,8 +145,14 @@ export default function ChatPage() {
     role: 'user' | 'assistant';
     content: string;
     attachments?: MessageAttachmentDisplay[];
+    // Collaborative chat fields
+    user_id?: string;
+    sender_name?: string;
+    sender_email?: string;
+    is_current_user?: boolean;
   }
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
+  const [isCollaborativeChat, setIsCollaborativeChat] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
@@ -683,29 +689,61 @@ export default function ChatPage() {
       
       let data: any[] | null = null;
       let error: any = null;
+      let isCollaborative = false;
       
       if (isSharedConversation) {
-        // Use API endpoint for shared conversations (bypasses RLS)
+        // Use collaborative-messages API for shared conversations (includes sender info)
         try {
-          const response = await fetch(`/api/shared-conversation/messages?conversationId=${currentConversation.id}`);
+          const response = await fetch(`/api/collaborative-messages?conversationId=${currentConversation.id}`);
           if (response.ok) {
             const result = await response.json();
             data = result.messages;
+            isCollaborative = result.isCollaborative;
+            setIsCollaborativeChat(isCollaborative);
           } else {
-            error = { message: 'Failed to fetch shared messages' };
+            // Fallback to regular shared messages API
+            const fallbackResponse = await fetch(`/api/shared-conversation/messages?conversationId=${currentConversation.id}`);
+            if (fallbackResponse.ok) {
+              const result = await fallbackResponse.json();
+              data = result.messages;
+            } else {
+              error = { message: 'Failed to fetch shared messages' };
+            }
           }
         } catch (err) {
           error = { message: 'Error fetching shared messages' };
         }
       } else {
-        // Direct Supabase query for user's own conversations
-        const result = await supabase
-          .from('messages')
-          .select('*')
-          .eq('conversation_id', currentConversation.id)
-          .order('created_at', { ascending: true });
-        data = result.data;
-        error = result.error;
+        // For own conversations, also check if it's collaborative (has write shares)
+        try {
+          const response = await fetch(`/api/collaborative-messages?conversationId=${currentConversation.id}`);
+          if (response.ok) {
+            const result = await response.json();
+            data = result.messages;
+            isCollaborative = result.isCollaborative;
+            setIsCollaborativeChat(isCollaborative);
+          } else {
+            // Fallback to direct Supabase query
+            const result = await supabase
+              .from('messages')
+              .select('*')
+              .eq('conversation_id', currentConversation.id)
+              .order('created_at', { ascending: true });
+            data = result.data;
+            error = result.error;
+            setIsCollaborativeChat(false);
+          }
+        } catch {
+          // Fallback to direct Supabase query
+          const result = await supabase
+            .from('messages')
+            .select('*')
+            .eq('conversation_id', currentConversation.id)
+            .order('created_at', { ascending: true });
+          data = result.data;
+          error = result.error;
+          setIsCollaborativeChat(false);
+        }
       }
 
       if (error) {
@@ -725,13 +763,18 @@ export default function ChatPage() {
             }
           });
           
-          // Map DB messages and restore any attachments
-          return data.map((m: Message) => ({
+          // Map DB messages and restore any attachments + collaborative info
+          return data.map((m: any) => ({
             id: m.id,
             role: m.role as 'user' | 'assistant',
             content: m.content,
             // Try to restore attachments by matching content
             attachments: attachmentMap.get(m.content),
+            // Collaborative chat fields
+            user_id: m.user_id,
+            sender_name: m.sender_name,
+            sender_email: m.sender_email,
+            is_current_user: m.is_current_user,
           }));
         });
       }
@@ -823,6 +866,7 @@ export default function ChatPage() {
     conversation_id: string;
     role: string;
     content: string;
+    user_id?: string; // For collaborative chats - track who sent the message
   }) => {
     const model = currentConversation?.model || 'claude-3-sonnet';
     const { data, error } = await supabase
@@ -832,6 +876,8 @@ export default function ChatPage() {
         tokens_used: 0,
         model,
         metadata: {},
+        // Include user_id for user messages in collaborative chats
+        user_id: message.role === 'user' ? (message.user_id || userId) : null,
       })
       .select()
       .single();
@@ -1500,7 +1546,8 @@ export default function ChatPage() {
       userName={userName}
       userEmail={userEmail}
       jobFunction={jobFunction}
-      isReadOnly={!!(currentConversation as any)?._isDirectlyShared && currentConversation?.user_id !== userId}
+      isReadOnly={!!(currentConversation as any)?._isDirectlyShared && currentConversation?.user_id !== userId && !isCollaborativeChat}
+      isCollaborativeChat={isCollaborativeChat}
     />
   );
 }

@@ -120,6 +120,7 @@ export async function GET(request: NextRequest) {
             name: recipient.name,
             email: recipient.email,
             status: share.status,
+            permission: share.permission || 'read', // 'read' or 'write'
             createdAt: share.created_at,
             acceptedAt: share.accepted_at,
           };
@@ -153,7 +154,12 @@ export async function POST(request: NextRequest) {
     );
 
     const body = await request.json();
-    const { conversationId, userIds, email, message } = body;
+    const { conversationId, userIds, email, message, permission = 'read' } = body;
+    
+    // Validate permission value
+    if (!['read', 'write'].includes(permission)) {
+      return NextResponse.json({ error: 'Invalid permission value. Must be "read" or "write"' }, { status: 400 });
+    }
 
     // Support both userIds array and single email
     let targetUserIds: string[] = userIds || [];
@@ -223,13 +229,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Create share records for new users only
-    const shares = newUserIds.map((userId: string) => ({
+    const shares = newUserIds.map((recipientUserId: string) => ({
       conversation_id: conversationId,
       shared_by: user.id,
-      shared_with: userId,
+      shared_with: recipientUserId,
       brand_id: conversation.brand_id,
       message: message || null,
       status: 'pending',
+      permission, // 'read' for view-only, 'write' for collaborative
     }));
 
     const { data: createdShares, error: insertError } = await supabase

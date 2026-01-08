@@ -142,7 +142,7 @@ export default function ChatPage() {
   }
   interface ChatMessage {
     id: string;
-    role: 'user' | 'assistant';
+    role: 'user' | 'assistant' | 'system';
     content: string;
     attachments?: MessageAttachmentDisplay[];
     // Collaborative chat fields
@@ -150,6 +150,8 @@ export default function ChatPage() {
     sender_name?: string;
     sender_email?: string;
     is_current_user?: boolean;
+    created_at?: string;
+    metadata?: { type?: string; user_name?: string };
   }
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
   const [isCollaborativeChat, setIsCollaborativeChat] = useState(false);
@@ -771,7 +773,7 @@ export default function ChatPage() {
           // Map DB messages and restore any attachments + collaborative info
           return data.map((m: any) => ({
             id: m.id,
-            role: m.role as 'user' | 'assistant',
+            role: m.role as 'user' | 'assistant' | 'system',
             content: m.content,
             // Try to restore attachments by matching content
             attachments: attachmentMap.get(m.content),
@@ -780,6 +782,8 @@ export default function ChatPage() {
             sender_name: m.sender_name,
             sender_email: m.sender_email,
             is_current_user: m.is_current_user,
+            created_at: m.created_at,
+            metadata: m.metadata,
           }));
         });
       }
@@ -851,6 +855,8 @@ export default function ChatPage() {
                 sender_name: senderName,
                 sender_email: senderEmail,
                 is_current_user: false,
+                created_at: newMessage.created_at,
+                metadata: newMessage.metadata,
               };
 
               setAiMessages(current => {
@@ -1591,6 +1597,8 @@ export default function ChatPage() {
     sender_name: m.sender_name,
     sender_email: m.sender_email,
     is_current_user: m.is_current_user,
+    created_at: m.created_at,
+    metadata: m.metadata,
   }));
 
   if (!userId || !brandId) {

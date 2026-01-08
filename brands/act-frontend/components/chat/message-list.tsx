@@ -16,6 +16,8 @@ interface Message {
   sender_name?: string;
   sender_email?: string;
   is_current_user?: boolean;
+  created_at?: string;
+  metadata?: { type?: string; user_name?: string };
 }
 
 interface MessageListProps {
@@ -81,7 +83,7 @@ export function MessageList({
           {messages.map((message, index) => (
             <ChatMessage
               key={message.id}
-              role={message.role === 'system' ? 'assistant' : message.role}
+              role={message.role}
               content={message.content}
               attachments={message.attachments}
               toolInvocations={message.toolInvocations}
@@ -91,6 +93,8 @@ export function MessageList({
               senderEmail={message.sender_email}
               isCurrentUser={message.is_current_user}
               isCollaborative={isCollaborativeChat}
+              timestamp={message.created_at}
+              metadata={message.metadata}
             />
           ))}
 

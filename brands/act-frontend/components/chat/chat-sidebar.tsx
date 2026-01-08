@@ -351,8 +351,11 @@ function ConversationItem({
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [teamCopied, setTeamCopied] = useState(false);
   const [publicCopied, setPublicCopied] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const [publicShareUrl, setPublicShareUrl] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState<{ url: string; token: string } | null>(null);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
   const [teamShareMode, setTeamShareMode] = useState<'private' | 'shared'>(conversation.visibility || 'private');
   const [existingShares, setExistingShares] = useState<any[]>([]);
   const isShared = existingShares.length > 0;
@@ -415,6 +418,40 @@ function ConversationItem({
       alert('Failed to generate public link. Please try again.');
     } finally {
       setIsGeneratingLink(false);
+    }
+  };
+
+  const handleGenerateInviteLink = async () => {
+    setIsGeneratingInvite(true);
+    try {
+      const response = await fetch('/api/conversation-invite-links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          permission: 'write', // Collaborative access
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate invite link');
+      }
+
+      const data = await response.json();
+      setInviteLink({ url: data.link.url, token: data.link.token });
+    } catch (error) {
+      console.error('Error generating invite link:', error);
+      alert('Failed to generate invite link. Please try again.');
+    } finally {
+      setIsGeneratingInvite(false);
+    }
+  };
+
+  const handleCopyInviteUrl = async () => {
+    if (inviteLink) {
+      await navigator.clipboard.writeText(inviteLink.url);
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 2000);
     }
   };
 
@@ -584,11 +621,72 @@ function ConversationItem({
 
             <Separator />
 
+            {/* Collaborative Invite Link */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">Invite Link (Collaborative)</Label>
+              </div>
+              
+              <p className="text-sm text-muted-foreground">
+                Share this link to invite teammates to collaborate on this chat
+              </p>
+
+              {!inviteLink ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerateInviteLink}
+                  disabled={isGeneratingInvite}
+                  className="w-full"
+                >
+                  {isGeneratingInvite ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <LinkIcon className="mr-2 h-4 w-4" />
+                      Create Invite Link
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      readOnly 
+                      value={inviteLink.url}
+                      className="flex-1 text-xs"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCopyInviteUrl}
+                      className="shrink-0"
+                    >
+                      {inviteCopied ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    ✓ Invite link created • Recipients can chat and collaborate
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
             {/* Public Link Sharing (Anyone with Link) */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-medium">Public Link (Anyone)</Label>
+                <Label className="text-sm font-medium">Public Link (Read-only)</Label>
               </div>
               
               <p className="text-sm text-muted-foreground">

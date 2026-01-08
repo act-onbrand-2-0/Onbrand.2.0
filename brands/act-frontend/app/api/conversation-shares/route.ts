@@ -287,6 +287,12 @@ export async function PATCH(request: NextRequest) {
       updateData.declined_at = new Date().toISOString();
     }
 
+    // Create service client for user lookups and bypassing RLS for system messages
+    const serviceSupabase = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     const { data: updatedShare, error: updateError } = await supabase
       .from('conversation_shares')
       .update(updateData)
@@ -298,6 +304,37 @@ export async function PATCH(request: NextRequest) {
     if (updateError) {
       console.error('Error updating share:', updateError);
       return NextResponse.json({ error: 'Failed to update invitation' }, { status: 500 });
+    }
+
+    // If accepted, insert a "joined the chat" system message
+    if (action === 'accept' && updatedShare) {
+      try {
+        // Get user's name for the system message
+        const userDetails = await getUserDetails(serviceSupabase, user.id);
+        const userName = userDetails.name || user.email?.split('@')[0] || 'Someone';
+        
+        // Insert system message into the conversation
+        await serviceSupabase
+          .from('messages')
+          .insert({
+            conversation_id: updatedShare.conversation_id,
+            role: 'system',
+            content: `${userName} joined the chat`,
+            tokens_used: 0,
+            model: 'system',
+            metadata: { 
+              type: 'user_joined',
+              user_id: user.id,
+              user_name: userName,
+              user_email: user.email,
+            },
+          });
+        
+        console.log('Inserted "joined the chat" system message for', userName);
+      } catch (err) {
+        console.error('Error inserting join message:', err);
+        // Don't fail the whole operation if system message fails
+      }
     }
 
     return NextResponse.json({ 

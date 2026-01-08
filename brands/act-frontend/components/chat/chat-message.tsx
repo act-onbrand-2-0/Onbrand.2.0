@@ -397,6 +397,29 @@ interface ChatMessageProps {
   senderEmail?: string;
   isCurrentUser?: boolean;
   isCollaborative?: boolean;
+  timestamp?: string; // ISO date string
+  metadata?: { type?: string; user_name?: string }; // For system messages
+}
+
+// Format timestamp for display
+function formatMessageTime(isoString?: string): string {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+  
+  const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  
+  if (isToday) {
+    return timeStr;
+  } else if (isYesterday) {
+    return `Yesterday ${timeStr}`;
+  } else {
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + timeStr;
+  }
 }
 
 export function ChatMessage({
@@ -409,13 +432,31 @@ export function ChatMessage({
   senderEmail,
   isCurrentUser = true,
   isCollaborative = false,
+  timestamp,
+  metadata,
 }: ChatMessageProps) {
   const isUser = role === 'user';
+  const isSystem = role === 'system';
   const hasAttachments = attachments && attachments.length > 0;
   const hasToolCalls = toolInvocations && toolInvocations.length > 0;
+  const formattedTime = formatMessageTime(timestamp);
   
   // Debug: Log all messages with their attachments
   console.log(`ChatMessage [${role}] content="${content?.slice(0,30)}..." hasAttachments=${hasAttachments}`);
+
+  // System messages (like "X joined the chat") get special styling
+  if (isSystem) {
+    return (
+      <div className="flex justify-center py-2">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 text-xs text-muted-foreground">
+          <span>{content}</span>
+          {formattedTime && (
+            <span className="text-muted-foreground/60">{formattedTime}</span>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -443,7 +484,7 @@ export function ChatMessage({
             'items-end': isUser,
           })}
         >
-          {/* Sender name for collaborative chats */}
+          {/* Sender name and timestamp for collaborative chats */}
           {isCollaborative && isUser && senderName && (
             <div className={cn('flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5', {
               'justify-end': isUser,
@@ -453,9 +494,16 @@ export function ChatMessage({
               })}>
                 {isCurrentUser ? 'You' : senderName}
               </span>
-              {!isCurrentUser && senderEmail && (
-                <span className="text-muted-foreground/60">({senderEmail})</span>
+              {formattedTime && (
+                <span className="text-muted-foreground/60">{formattedTime}</span>
               )}
+            </div>
+          )}
+          
+          {/* Timestamp for non-collaborative chats (show on hover or always for collaborative) */}
+          {!isCollaborative && formattedTime && isUser && (
+            <div className="flex justify-end">
+              <span className="text-xs text-muted-foreground/60">{formattedTime}</span>
             </div>
           )}
 

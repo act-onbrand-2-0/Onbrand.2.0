@@ -29,6 +29,7 @@ interface MessageListProps {
   isDeepResearchActive?: boolean;
   userName?: string;
   isCollaborativeChat?: boolean;
+  typingUsers?: {userId: string; userName: string}[];
 }
 
 export function MessageList({
@@ -40,6 +41,7 @@ export function MessageList({
   isDeepResearchActive = false,
   userName,
   isCollaborativeChat = false,
+  typingUsers = [],
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -123,6 +125,23 @@ export function MessageList({
               <Loader2 className="size-4 animate-spin" />
               <Wrench className="size-4" />
               <span>Using tool: <code className="font-mono bg-blue-500/20 px-1.5 py-0.5 rounded">{activeToolCall}</code></span>
+            </div>
+          )}
+
+          {/* Typing Indicator */}
+          {typingUsers.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+              <div className="flex gap-1">
+                <span className="size-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="size-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="size-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span>
+                {typingUsers.length === 1 
+                  ? `${typingUsers[0].userName} is typing...`
+                  : `${typingUsers.map(u => u.userName).join(', ')} are typing...`
+                }
+              </span>
             </div>
           )}
 

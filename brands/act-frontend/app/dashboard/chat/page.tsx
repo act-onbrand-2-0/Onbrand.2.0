@@ -156,6 +156,7 @@ export default function ChatPage() {
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
   const [isCollaborativeChat, setIsCollaborativeChat] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<{userId: string; userName: string}[]>([]);
   const [streamingContent, setStreamingContent] = useState('');
   const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
   const [isDeepResearchActive, setIsDeepResearchActive] = useState(false);
@@ -833,18 +834,16 @@ export default function ChatPage() {
     };
   }, [currentConversation?.id, userId, supabase, isCollaborativeChat]);
 
-  // Real-time subscription for collaborative chat messages
-  // Subscribe for ALL shared conversations to catch messages even before collaborative mode is detected
+  // Real-time subscription for collaborative chat messages AND typing indicators
+  // Using broadcast channel which doesn't require RLS - more reliable for real-time sync
   useEffect(() => {
-    // Subscribe if we have a conversation - we'll filter messages on receipt
     if (!currentConversation || !userId) return;
     
     const isOwner = currentConversation.user_id === userId;
-    let channelInstance: ReturnType<typeof supabase.channel> | null = null;
-    let isMounted = true;
+    console.log('Setting up real-time channel for chat:', currentConversation.id, 'isOwner:', isOwner);
     
     const handleNewMessage = async (payload: any) => {
-      const newMessage = payload.new as any;
+      const newMessage = payload.new || payload;
       console.log('Real-time message received:', newMessage);
 
       // Skip if this message is from the current user (we already added it locally)
@@ -895,81 +894,147 @@ export default function ChatPage() {
         }
         return [...current, enrichedMessage];
       });
+      
+      // Clear typing indicator for this user when they send a message
+      if (newMessage.user_id) {
+        setTypingUsers(current => current.filter(u => u.userId !== newMessage.user_id));
+      }
     };
 
-    const setupSubscription = () => {
-      console.log('Setting up real-time subscription for chat:', currentConversation.id, 'isCollaborativeChat:', isCollaborativeChat, 'isOwner:', isOwner);
+    // Handle typing indicator broadcasts
+    const handleTypingEvent = (payload: any) => {
+      const { userId: typingUserId, userName: typingUserName, isTyping } = payload;
       
-      // Use both postgres_changes AND broadcast for reliability
-      channelInstance = supabase
-        .channel(`chat-messages-${currentConversation.id}`, {
-          config: { broadcast: { self: false } }
-        })
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'messages',
-            filter: `conversation_id=eq.${currentConversation.id}`,
-          },
-          handleNewMessage
-        )
-        // Also listen for broadcast messages (for immediate sync)
-        .on('broadcast', { event: 'new_message' }, (payload: any) => {
-          console.log('Broadcast message received:', payload);
-          if (payload.payload) {
-            handleNewMessage({ new: payload.payload });
-          }
-        })
-        .subscribe((status: string) => {
-          console.log('Chat messages subscription status:', status);
-        });
-    };
-
-    // For owners: check if conversation has any shares before deciding to skip
-    const checkAndSubscribe = async () => {
-      let shouldSubscribe = !isOwner || isCollaborativeChat;
+      // Ignore own typing events
+      if (typingUserId === userId) return;
       
-      // If owner and not collaborative, double-check for any shares
-      if (isOwner && !isCollaborativeChat) {
-        try {
-          const response = await fetch(`/api/collaborative-messages?conversationId=${currentConversation.id}`);
-          if (response.ok) {
-            const result = await response.json();
-            if (result.isCollaborative) {
-              console.log('Detected collaborative mode - updating state');
-              if (isMounted) {
-                setIsCollaborativeChat(true);
-              }
-              shouldSubscribe = true;
-            }
+      console.log('Typing event received:', typingUserId, typingUserName, isTyping);
+      
+      setTypingUsers(current => {
+        if (isTyping) {
+          // Add user if not already in list
+          if (!current.some(u => u.userId === typingUserId)) {
+            return [...current, { userId: typingUserId, userName: typingUserName }];
           }
-        } catch (err) {
-          console.error('Failed to check collaborative status:', err);
+          return current;
+        } else {
+          // Remove user from typing list
+          return current.filter(u => u.userId !== typingUserId);
         }
-      }
-      
-      if (!shouldSubscribe) {
-        console.log('Skipping real-time subscription - owner of non-collaborative chat');
-        return;
-      }
-      
-      if (isMounted) {
-        setupSubscription();
-      }
+      });
     };
 
-    checkAndSubscribe();
+    // Create channel with broadcast for messages and typing indicators
+    const channel = supabase
+      .channel(`chat-room-${currentConversation.id}`, {
+        config: { broadcast: { self: false } }
+      })
+      // Listen for postgres_changes (primary sync method)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${currentConversation.id}`,
+        },
+        (payload) => handleNewMessage(payload)
+      )
+      // Listen for broadcast messages (backup sync method - doesn't need RLS)
+      .on('broadcast', { event: 'new_message' }, (payload: any) => {
+        console.log('Broadcast new_message received:', payload);
+        if (payload.payload) {
+          handleNewMessage(payload.payload);
+        }
+      })
+      // Listen for typing indicators
+      .on('broadcast', { event: 'typing' }, (payload: any) => {
+        if (payload.payload) {
+          handleTypingEvent(payload.payload);
+        }
+      })
+      .subscribe((status: string) => {
+        console.log('Chat room subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          // Check and update collaborative status once subscribed
+          if (isOwner && !isCollaborativeChat) {
+            fetch(`/api/collaborative-messages?conversationId=${currentConversation.id}`)
+              .then(res => res.ok ? res.json() : null)
+              .then(result => {
+                if (result?.isCollaborative) {
+                  console.log('Detected collaborative mode');
+                  setIsCollaborativeChat(true);
+                }
+              })
+              .catch(err => console.error('Failed to check collaborative status:', err));
+          }
+        }
+      });
 
     return () => {
-      isMounted = false;
-      if (channelInstance) {
-        console.log('Cleaning up chat messages subscription');
-        supabase.removeChannel(channelInstance);
+      console.log('Cleaning up chat room subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [currentConversation?.id, currentConversation?.user_id, userId, supabase, setAiMessages]);
+
+  // Broadcast typing indicator when user is typing
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTypingBroadcast = useRef<number>(0);
+  
+  const broadcastTyping = useCallback((isTyping: boolean) => {
+    if (!currentConversation || !userId) return;
+    
+    const now = Date.now();
+    // Throttle typing broadcasts to once per second
+    if (isTyping && now - lastTypingBroadcast.current < 1000) return;
+    lastTypingBroadcast.current = now;
+    
+    const channel = supabase.channel(`chat-room-${currentConversation.id}`);
+    channel.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: {
+        userId,
+        userName: userName || 'User',
+        isTyping
+      }
+    }).catch(err => console.error('Failed to broadcast typing:', err));
+  }, [currentConversation?.id, userId, userName, supabase]);
+
+  // Handle input change to broadcast typing
+  const handleInputChange = useCallback((value: string) => {
+    setInput(value);
+    
+    // Broadcast typing start
+    if (value.trim()) {
+      broadcastTyping(true);
+      
+      // Clear previous timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // Set timeout to stop typing indicator after 3 seconds of no input
+      typingTimeoutRef.current = setTimeout(() => {
+        broadcastTyping(false);
+      }, 3000);
+    } else {
+      // Input is empty, stop typing
+      broadcastTyping(false);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    }
+  }, [broadcastTyping]);
+
+  // Stop typing broadcast when message is sent
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [currentConversation?.id, currentConversation?.user_id, isCollaborativeChat, userId, supabase, setAiMessages]);
+  }, []);
 
   // Handle initial message from dashboard
   const initialMessageHandled = useRef(false);
@@ -1765,6 +1830,8 @@ export default function ChatPage() {
       jobFunction={jobFunction}
       isReadOnly={!!(currentConversation as any)?._isDirectlyShared && currentConversation?.user_id !== userId && !isCollaborativeChat}
       isCollaborativeChat={isCollaborativeChat}
+      typingUsers={typingUsers}
+      onInputChange={handleInputChange}
     />
   );
 }

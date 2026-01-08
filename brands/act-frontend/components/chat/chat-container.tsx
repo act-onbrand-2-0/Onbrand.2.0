@@ -116,6 +116,10 @@ interface ChatContainerProps {
   
   // Collaborative chat mode (multiple users can send messages)
   isCollaborativeChat?: boolean;
+  
+  // Typing indicators
+  typingUsers?: {userId: string; userName: string}[];
+  onInputChange?: (value: string) => void;
 }
 
 export function ChatContainer({
@@ -167,6 +171,8 @@ export function ChatContainer({
 	onMcpServersLoaded,
 	isReadOnly = false,
 	isCollaborativeChat = false,
+	typingUsers = [],
+	onInputChange,
 }: ChatContainerProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
@@ -248,6 +254,7 @@ export function ChatContainer({
               isDeepResearchActive={isDeepResearchActive}
               userName={userName}
               isCollaborativeChat={isCollaborativeChat}
+              typingUsers={typingUsers}
             />
 
             {/* Suggested Actions - Show when no messages and input is empty */}
@@ -276,7 +283,7 @@ export function ChatContainer({
               ) : (
                 <ChatInput
                   input={input}
-                  setInput={setInput}
+                  setInput={onInputChange || setInput}
                   onSubmit={onSendMessage}
                   onStop={onStopGeneration}
                   isStreaming={isStreaming}

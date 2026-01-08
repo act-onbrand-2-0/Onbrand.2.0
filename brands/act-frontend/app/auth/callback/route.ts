@@ -36,15 +36,6 @@ export async function GET(request: Request) {
   const protocol = request.headers.get('x-forwarded-proto') || 'https';
   const actualOrigin = `${protocol}://${actualHost}`;
 
-  // Log for debugging
-  console.log('[Auth Callback] ========== DEBUG ==========');
-  console.log('[Auth Callback] request.url:', request.url);
-  console.log('[Auth Callback] x-forwarded-host:', forwardedHost);
-  console.log('[Auth Callback] host header:', host);
-  console.log('[Auth Callback] actualHost:', actualHost);
-  console.log('[Auth Callback] actualOrigin:', actualOrigin);
-  console.log('[Auth Callback] Code present:', !!code);
-  console.log('[Auth Callback] ========== END DEBUG ==========');
 
   // Handle OAuth errors from provider
   if (error_param) {

@@ -1147,8 +1147,9 @@ export default function ChatPage() {
       
       // Broadcast the message for immediate real-time delivery to other users
       // This supplements postgres_changes which can have slight delays
-      if (isCollaborativeChat && message.conversation_id) {
-        const channel = supabase.channel(`chat-messages-${message.conversation_id}`);
+      // IMPORTANT: Channel name must match the subscription channel: chat-room-${id}
+      if (message.conversation_id) {
+        const channel = supabase.channel(`chat-room-${message.conversation_id}`);
         channel.send({
           type: 'broadcast',
           event: 'new_message',

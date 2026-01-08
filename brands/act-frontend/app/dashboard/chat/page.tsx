@@ -846,11 +846,18 @@ export default function ChatPage() {
     const handleNewMessage = async (payload: any) => {
       const newMessage = payload.new || payload;
       console.log('Real-time message received:', newMessage);
+      console.log('User ID comparison - message.user_id:', newMessage.user_id, 'current userId:', userId, 'match:', newMessage.user_id === userId);
 
       // Skip if this message is from the current user (we already added it locally)
-      if (newMessage.user_id === userId) {
-        console.log('Skipping own message - user_id matches');
+      // Also skip if user_id is null/undefined (assistant messages) - those sync via DB fetch
+      if (newMessage.user_id && newMessage.user_id === userId) {
+        console.log('Skipping own message - user_id matches:', newMessage.user_id);
         return;
+      }
+      
+      // For user messages from others, we should see them
+      if (newMessage.role === 'user' && newMessage.user_id && newMessage.user_id !== userId) {
+        console.log('Received message from other user:', newMessage.user_id, 'content:', newMessage.content?.substring(0, 50));
       }
 
       // Fetch sender info for the new message
@@ -1143,7 +1150,15 @@ export default function ChatPage() {
       .single();
 
     if (error) {
-      console.error('Failed to save message:', error.message, error.details, error.hint);
+      console.error('❌ CRITICAL: Failed to save message to DB!');
+      console.error('Error:', error.message);
+      console.error('Details:', error.details);
+      console.error('Hint:', error.hint);
+      console.error('Code:', error.code);
+      console.error('Message data:', { conversation_id: message.conversation_id, role: message.role, user_id: messageUserId });
+      // This is likely an RLS issue - the user might not have INSERT permission
+    } else {
+      console.log('✅ Message saved to DB successfully:', data?.id);
     }
     
     if (!error && data) {

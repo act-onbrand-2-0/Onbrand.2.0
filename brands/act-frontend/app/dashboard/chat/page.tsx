@@ -797,10 +797,64 @@ export default function ChatPage() {
     // Only subscribe if we have a conversation and it's collaborative
     if (!currentConversation || !isCollaborativeChat || !userId) return;
 
-    console.log('Setting up real-time subscription for collaborative chat:', currentConversation.id);
+    console.log('Setting up real-time subscription for collaborative chat:', currentConversation.id, 'isCollaborativeChat:', isCollaborativeChat);
+
+    const handleNewMessage = async (payload: any) => {
+      const newMessage = payload.new as any;
+      console.log('Real-time message received:', newMessage);
+
+      // Skip if this message is from the current user (we already added it locally)
+      if (newMessage.user_id === userId) {
+        console.log('Skipping own message - user_id matches');
+        return;
+      }
+
+      // Fetch sender info for the new message
+      let senderName = 'User';
+      let senderEmail = '';
+      
+      if (newMessage.user_id && newMessage.role === 'user') {
+        try {
+          const res = await fetch(`/api/user-info?userId=${newMessage.user_id}`);
+          if (res.ok) {
+            const userData = await res.json();
+            senderName = userData.name || 'User';
+            senderEmail = userData.email || '';
+          }
+        } catch (err) {
+          console.error('Failed to fetch sender info:', err);
+        }
+      } else if (newMessage.role === 'assistant') {
+        senderName = 'Assistant';
+      } else if (newMessage.role === 'system') {
+        senderName = 'System';
+      }
+
+      const enrichedMessage: ChatMessage = {
+        id: newMessage.id,
+        role: newMessage.role,
+        content: newMessage.content,
+        user_id: newMessage.user_id,
+        sender_name: senderName,
+        sender_email: senderEmail,
+        is_current_user: false,
+        created_at: newMessage.created_at,
+        metadata: newMessage.metadata,
+      };
+
+      console.log('Adding real-time message to chat:', enrichedMessage);
+      setAiMessages(current => {
+        // Check for duplicates using current state
+        if (current.some(m => m.id === newMessage.id)) {
+          console.log('Skipping duplicate - already in state');
+          return current;
+        }
+        return [...current, enrichedMessage];
+      });
+    };
 
     const channel = supabase
-      .channel(`messages:${currentConversation.id}`)
+      .channel(`collaborative-messages-${currentConversation.id}`)
       .on(
         'postgres_changes',
         {
@@ -809,69 +863,7 @@ export default function ChatPage() {
           table: 'messages',
           filter: `conversation_id=eq.${currentConversation.id}`,
         },
-        async (payload) => {
-          const newMessage = payload.new as any;
-          console.log('Real-time message received:', newMessage);
-
-          // Skip if this message is from the current user (we already added it locally)
-          if (newMessage.user_id === userId) {
-            console.log('Skipping own message');
-            return;
-          }
-
-          // Skip if we already have this message
-          setAiMessages(prev => {
-            if (prev.some(m => m.id === newMessage.id)) {
-              console.log('Skipping duplicate message');
-              return prev;
-            }
-
-            // Fetch sender info for the new message
-            const fetchSenderAndAdd = async () => {
-              let senderName = 'User';
-              let senderEmail = '';
-              
-              if (newMessage.user_id && newMessage.role === 'user') {
-                try {
-                  // Fetch user details via API
-                  const res = await fetch(`/api/user-info?userId=${newMessage.user_id}`);
-                  if (res.ok) {
-                    const userData = await res.json();
-                    senderName = userData.name || 'User';
-                    senderEmail = userData.email || '';
-                  }
-                } catch (err) {
-                  console.error('Failed to fetch sender info:', err);
-                }
-              } else if (newMessage.role === 'assistant') {
-                senderName = 'Assistant';
-              }
-
-              const enrichedMessage: ChatMessage = {
-                id: newMessage.id,
-                role: newMessage.role,
-                content: newMessage.content,
-                user_id: newMessage.user_id,
-                sender_name: senderName,
-                sender_email: senderEmail,
-                is_current_user: false,
-                created_at: newMessage.created_at,
-                metadata: newMessage.metadata,
-              };
-
-              setAiMessages(current => {
-                // Double-check we don't already have it
-                if (current.some(m => m.id === newMessage.id)) {
-                  return current;
-                }
-                return [...current, enrichedMessage];
-              });
-            };
-
-            fetchSenderAndAdd();
-            return prev; // Return unchanged for now, the async function will update
-          });
-        }
+        handleNewMessage
       )
       .subscribe((status) => {
         console.log('Collaborative messages subscription status:', status);

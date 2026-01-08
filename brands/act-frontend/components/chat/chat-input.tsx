@@ -959,8 +959,7 @@ export function ChatInput({
 													const menuItem = (
 														<DropdownMenuItem
 															key={server.id}
-															onClick={(e) => {
-																e.preventDefault();
+															onClick={() => {
 																if (!isDisabled) handleToggleMcpServer(server.id);
 															}}
 															disabled={isDisabled}
@@ -1135,7 +1134,7 @@ export function ChatInput({
                   'size-8 rounded-lg transition-colors',
                   canSend 
                     ? 'bg-foreground text-background hover:bg-foreground/90' 
-                    : 'text-muted-foreground cursor-not-allowed'
+                    : 'text-muted-foreground cursor-not-allowed hover:bg-transparent hover:text-muted-foreground'
                 )}
                 disabled={!canSend}
                 onClick={handleSubmit}

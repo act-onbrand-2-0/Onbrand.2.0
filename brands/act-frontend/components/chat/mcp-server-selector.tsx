@@ -203,8 +203,7 @@ export function MCPServerSelector({
                 isDisabledAtBrand && "opacity-50"
               )}
               disabled={isDisabledAtBrand}
-              onSelect={(e) => {
-                e.preventDefault();
+              onSelect={() => {
                 if (!isDisabledAtBrand) {
                   handleToggleServer(server.id);
                 }

@@ -174,7 +174,7 @@ export function Greeting({ userName }: GreetingProps) {
           Hello there{userName ? `, ${userName}` : ''}!
         </h1>
         <p className="text-muted-foreground text-base md:text-lg">
-          How can I help you today?
+         What's on your mind today?
         </p>
       </div>
     </div>

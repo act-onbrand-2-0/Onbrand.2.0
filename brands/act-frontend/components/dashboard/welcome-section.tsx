@@ -13,7 +13,7 @@ export function WelcomeSection({ userName }: WelcomeSectionProps) {
         Welcome Back, {firstName}!
       </h2>
       <p className="text-sm sm:text-base text-muted-foreground">
-        How can I help you today?
+        What’s on your mind today?
       </p>
     </div>
   );

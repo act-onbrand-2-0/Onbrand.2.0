@@ -1935,17 +1935,20 @@ function ConversationItem({
     try {
       const memberIds = Array.from(selectedMembers);
       
-      // Share conversation with each selected member
-      for (const memberId of memberIds) {
-        await fetch('/api/conversation-shares', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            conversationId: conversation.id,
-            userId: memberId,
-            permission: 'write',
-          }),
-        });
+      // Share conversation with all selected members at once
+      const response = await fetch('/api/conversation-shares', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          userIds: memberIds,
+          permission: 'write',
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Share error:', error);
       }
       
       // Refresh shares

@@ -792,12 +792,61 @@ export default function ChatPage() {
     fetchMessages();
   }, [currentConversation, setAiMessages, userId, supabase]);
 
-  // Real-time subscription for collaborative chat messages
+  // Real-time subscription to detect when conversation becomes collaborative
   useEffect(() => {
-    // Only subscribe if we have a conversation and it's collaborative
-    if (!currentConversation || !isCollaborativeChat || !userId) return;
+    if (!currentConversation || !userId) return;
 
-    console.log('Setting up real-time subscription for collaborative chat:', currentConversation.id, 'isCollaborativeChat:', isCollaborativeChat);
+    // Subscribe to conversation_shares changes for this conversation
+    const sharesChannel = supabase
+      .channel(`shares-${currentConversation.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversation_shares',
+          filter: `conversation_id=eq.${currentConversation.id}`,
+        },
+        async (payload) => {
+          console.log('Conversation shares changed:', payload);
+          // Re-check if conversation is now collaborative
+          try {
+            const response = await fetch(`/api/collaborative-messages?conversationId=${currentConversation.id}`);
+            if (response.ok) {
+              const result = await response.json();
+              if (result.isCollaborative !== isCollaborativeChat) {
+                console.log('Collaborative status changed to:', result.isCollaborative);
+                setIsCollaborativeChat(result.isCollaborative);
+              }
+            }
+          } catch (err) {
+            console.error('Failed to check collaborative status:', err);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Shares subscription status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(sharesChannel);
+    };
+  }, [currentConversation?.id, userId, supabase, isCollaborativeChat]);
+
+  // Real-time subscription for collaborative chat messages
+  // Subscribe for ALL shared conversations to catch messages even before collaborative mode is detected
+  useEffect(() => {
+    // Subscribe if we have a conversation - we'll filter messages on receipt
+    if (!currentConversation || !userId) return;
+    
+    // Skip subscription for conversations user owns that aren't collaborative
+    const isOwner = currentConversation.user_id === userId;
+    if (isOwner && !isCollaborativeChat) {
+      console.log('Skipping real-time subscription - owner of non-collaborative chat');
+      return;
+    }
+
+    console.log('Setting up real-time subscription for chat:', currentConversation.id, 'isCollaborativeChat:', isCollaborativeChat, 'isOwner:', isOwner);
 
     const handleNewMessage = async (payload: any) => {
       const newMessage = payload.new as any;
@@ -853,8 +902,11 @@ export default function ChatPage() {
       });
     };
 
+    // Use both postgres_changes AND broadcast for reliability
     const channel = supabase
-      .channel(`collaborative-messages-${currentConversation.id}`)
+      .channel(`chat-messages-${currentConversation.id}`, {
+        config: { broadcast: { self: false } }
+      })
       .on(
         'postgres_changes',
         {
@@ -865,15 +917,22 @@ export default function ChatPage() {
         },
         handleNewMessage
       )
+      // Also listen for broadcast messages (for immediate sync)
+      .on('broadcast', { event: 'new_message' }, (payload) => {
+        console.log('Broadcast message received:', payload);
+        if (payload.payload) {
+          handleNewMessage({ new: payload.payload });
+        }
+      })
       .subscribe((status) => {
-        console.log('Collaborative messages subscription status:', status);
+        console.log('Chat messages subscription status:', status);
       });
 
     return () => {
-      console.log('Cleaning up collaborative messages subscription');
+      console.log('Cleaning up chat messages subscription');
       supabase.removeChannel(channel);
     };
-  }, [currentConversation?.id, isCollaborativeChat, userId, supabase, setAiMessages]);
+  }, [currentConversation?.id, currentConversation?.user_id, isCollaborativeChat, userId, supabase, setAiMessages]);
 
   // Handle initial message from dashboard
   const initialMessageHandled = useRef(false);
@@ -954,7 +1013,7 @@ export default function ChatPage() {
     }
   }, [input, brandId, userId, currentProjectId, selectedModel, supabase, sendMessage]);
 
-  // Save message to database
+  // Save message to database and broadcast for real-time sync
   const saveMessageToDb = async (message: {
     conversation_id: string;
     role: string;
@@ -962,6 +1021,8 @@ export default function ChatPage() {
     user_id?: string; // For collaborative chats - track who sent the message
   }) => {
     const model = currentConversation?.model || 'claude-3-sonnet';
+    const messageUserId = message.role === 'user' ? (message.user_id || userId) : null;
+    
     const { data, error } = await supabase
       .from('messages')
       .insert({
@@ -970,7 +1031,7 @@ export default function ChatPage() {
         model,
         metadata: {},
         // Include user_id for user messages in collaborative chats
-        user_id: message.role === 'user' ? (message.user_id || userId) : null,
+        user_id: messageUserId,
       })
       .select()
       .single();
@@ -981,6 +1042,25 @@ export default function ChatPage() {
     
     if (!error && data) {
       setDbMessages((prev) => [...prev, data]);
+      
+      // Broadcast the message for immediate real-time delivery to other users
+      // This supplements postgres_changes which can have slight delays
+      if (isCollaborativeChat && message.conversation_id) {
+        const channel = supabase.channel(`chat-messages-${message.conversation_id}`);
+        channel.send({
+          type: 'broadcast',
+          event: 'new_message',
+          payload: {
+            ...data,
+            sender_name: message.role === 'user' ? userName : 'Assistant',
+            sender_email: message.role === 'user' ? userEmail : null,
+          }
+        }).then(() => {
+          console.log('Message broadcasted to channel');
+        }).catch((err) => {
+          console.error('Failed to broadcast message:', err);
+        });
+      }
     }
 
     return data;

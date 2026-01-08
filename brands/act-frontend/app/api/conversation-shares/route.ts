@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
+
+// Create Resend client on demand
+const createResendClient = () => {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('Missing RESEND_API_KEY - email notifications disabled');
+    return null;
+  }
+  return new Resend(process.env.RESEND_API_KEY);
+};
 
 // Helper to get user details
 async function getUserDetails(serviceSupabase: any, userId: string) {
@@ -247,6 +257,52 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       console.error('Error creating shares:', insertError);
       return NextResponse.json({ error: 'Failed to share conversation' }, { status: 500 });
+    }
+
+    // Get sharer's details for the email
+    const sharerDetails = await getUserDetails(serviceSupabase, user.id);
+    
+    // Send email notifications to recipients
+    const resend = createResendClient();
+    if (resend && createdShares && createdShares.length > 0) {
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://chatbot.onbrandai.app';
+      
+      // Send emails in parallel (don't block the response)
+      Promise.all(
+        newUserIds.map(async (recipientId: string) => {
+          try {
+            const recipientDetails = await getUserDetails(serviceSupabase, recipientId);
+            if (recipientDetails.email && recipientDetails.email !== 'Unknown') {
+              await resend.emails.send({
+                from: process.env.RESEND_FROM_EMAIL || 'Onbrand AI <notifications@onbrandai.app>',
+                to: recipientDetails.email,
+                subject: `${sharerDetails.name} shared a chat with you`,
+                html: `
+                  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #1a1a1a; margin-bottom: 16px;">You've been invited to collaborate!</h2>
+                    <p style="color: #4a4a4a; font-size: 16px; line-height: 1.5;">
+                      <strong>${sharerDetails.name}</strong> has shared the conversation "<strong>${conversation.title || 'Untitled Chat'}</strong>" with you.
+                    </p>
+                    <p style="color: #4a4a4a; font-size: 16px; line-height: 1.5;">
+                      ${permission === 'write' ? 'You can collaborate and send messages in this chat.' : 'You can view this conversation.'}
+                    </p>
+                    ${message ? `<p style="color: #666; font-size: 14px; background: #f5f5f5; padding: 12px; border-radius: 8px; margin: 16px 0;"><em>"${message}"</em></p>` : ''}
+                    <a href="${baseUrl}/dashboard/chat" style="display: inline-block; background: #0066ff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; margin-top: 16px;">
+                      Open Chat
+                    </a>
+                    <p style="color: #888; font-size: 12px; margin-top: 24px;">
+                      You're receiving this because someone shared a chat with you on Onbrand AI.
+                    </p>
+                  </div>
+                `,
+              });
+              console.log(`Email notification sent to ${recipientDetails.email}`);
+            }
+          } catch (emailError) {
+            console.error(`Failed to send email to user ${recipientId}:`, emailError);
+          }
+        })
+      ).catch(err => console.error('Email sending batch error:', err));
     }
 
     return NextResponse.json({ 

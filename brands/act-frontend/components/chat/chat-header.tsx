@@ -160,14 +160,18 @@ export function ChatHeader({
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem
                 onClick={() => {
+                  // Use proper production URL, not localhost
+                  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://onbrandai.app';
+                  const shareUrl = `${baseUrl}${window.location.pathname}`;
+                  
                   if (navigator.share) {
                     navigator.share({
                       title: conversation.title || 'Chat',
                       text: `Check out this chat: ${conversation.title}`,
-                      url: window.location.href,
+                      url: shareUrl,
                     }).catch(() => {});
                   } else {
-                    navigator.clipboard.writeText(window.location.href);
+                    navigator.clipboard.writeText(shareUrl);
                     alert('Link copied to clipboard');
                   }
                 }}

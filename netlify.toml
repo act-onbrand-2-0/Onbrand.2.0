@@ -4,6 +4,16 @@
   publish = "brands/act-frontend/.next"
   functions = "brands/act-frontend/netlify/functions"
 
+# Enable branch deploys for all branches
+[build.processing]
+  skip_processing = false
+
+# Branch deploy settings - enables branch subdomains like chatbot.onbrandai.app
+# Uses Netlify's BRANCH env var to construct the subdomain URL dynamically
+[context.branch-deploy.environment]
+  NETLIFY_BRANCH_DEPLOY = "true"
+  # Note: NEXT_PUBLIC_SITE_URL is set dynamically in build script using $BRANCH
+
 [build.environment]
   NODE_VERSION = "20.12.1"
 
@@ -14,13 +24,11 @@
 [context.production]
   environment = { NEXT_PUBLIC_SITE_URL = "https://onbrandai.app" }
 
-# Deploy Preview - uses Netlify's deploy URL automatically
+# Deploy Preview - URL set dynamically in build script
 [context.deploy-preview]
-  environment = { NEXT_PUBLIC_SITE_URL = "" }
 
-# Branch deploys
+# Branch deploys - URL set dynamically in build script (e.g., chatbot.onbrandai.app)
 [context.branch-deploy]
-  environment = { NEXT_PUBLIC_SITE_URL = "" }
 
 # Note: @netlify/plugin-nextjs handles all routing automatically
 # No custom redirects needed for subdomains - Next.js middleware handles brand detection

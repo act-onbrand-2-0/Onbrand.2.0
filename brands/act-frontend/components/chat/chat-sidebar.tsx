@@ -561,83 +561,20 @@ function ConversationItem({
               Share conversation
             </DialogTitle>
             <DialogDescription>
-              Share this conversation with your team or via public link
+              Invite others to collaborate on this chat
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
-            {/* Team Sharing (Brand Members Only) */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-medium">Team Access (Brand Members)</Label>
-              </div>
-              
-              <RadioGroup
-                value={teamShareMode}
-                onValueChange={(value) => handleTeamShareChange(value as 'private' | 'shared')}
-                className="space-y-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="private" id="private" />
-                  <Label htmlFor="private" className="font-normal cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <Lock className="h-4 w-4" />
-                      <span>Private (only you)</span>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="shared" id="shared" />
-                  <Label htmlFor="shared" className="font-normal cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      <span>Shared (all brand members)</span>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
-
-              {teamShareMode === 'shared' && (
-                <div className="flex items-center gap-2 pl-6">
-            <Input 
-              readOnly 
-                    value={teamShareUrl}
-                    className="flex-1 text-xs"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-                    onClick={handleCopyTeamUrl}
-              className="shrink-0"
-            >
-                    {teamCopied ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            <Separator />
-
+          <div className="space-y-4 py-4">
             {/* Collaborative Invite Link */}
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-medium">Invite Link (Collaborative)</Label>
-              </div>
-              
               <p className="text-sm text-muted-foreground">
-                Share this link to invite teammates to collaborate on this chat
+                Anyone with this link can join and collaborate on this chat in real-time
               </p>
 
               {!inviteLink ? (
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="default"
                   onClick={handleGenerateInviteLink}
                   disabled={isGeneratingInvite}
                   className="w-full"
@@ -645,7 +582,7 @@ function ConversationItem({
                   {isGeneratingInvite ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
+                      Creating link...
                     </>
                   ) : (
                     <>
@@ -655,89 +592,34 @@ function ConversationItem({
                   )}
                 </Button>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Input 
                       readOnly 
                       value={inviteLink.url}
-                      className="flex-1 text-xs"
+                      className="flex-1 text-sm bg-muted"
                     />
                     <Button
                       size="sm"
-                      variant="outline"
                       onClick={handleCopyInviteUrl}
                       className="shrink-0"
                     >
                       {inviteCopied ? (
-                        <Check className="h-4 w-4" />
+                        <>
+                          <Check className="mr-1 h-4 w-4" />
+                          Copied
+                        </>
                       ) : (
-                        <Copy className="h-4 w-4" />
+                        <>
+                          <Copy className="mr-1 h-4 w-4" />
+                          Copy
+                        </>
                       )}
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    ✓ Invite link created • Recipients can chat and collaborate
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <Separator />
-
-            {/* Public Link Sharing (Anyone with Link) */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-medium">Public Link (Read-only)</Label>
-              </div>
-              
-              <p className="text-sm text-muted-foreground">
-                Anyone with this link can view (read-only)
-              </p>
-
-              {!publicShareUrl ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGeneratePublicLink}
-                  disabled={isGeneratingLink}
-                  className="w-full"
-                >
-                  {isGeneratingLink ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                </>
-              ) : (
-                <>
-                      <LinkIcon className="mr-2 h-4 w-4" />
-                      Generate Public Link
-                    </>
-                  )}
-                </Button>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Input 
-                      readOnly 
-                      value={publicShareUrl}
-                      className="flex-1 text-xs"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleCopyPublicUrl}
-                      className="shrink-0"
-                    >
-                      {publicCopied ? (
-                        <Check className="h-4 w-4" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    ✓ Public link created • No expiration • Unlimited views
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Check className="h-3 w-3 text-green-500" />
+                    Link ready • Share it with your teammates
                   </p>
                 </div>
               )}

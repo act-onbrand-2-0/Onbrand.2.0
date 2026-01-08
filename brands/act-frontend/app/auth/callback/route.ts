@@ -30,10 +30,14 @@ export async function GET(request: Request) {
   const error_param = requestUrl.searchParams.get('error');
 
   // Log for debugging (remove in production)
-  console.log('[Auth Callback] URL:', requestUrl.toString());
-  console.log('[Auth Callback] Origin:', requestUrl.origin);
+  console.log('[Auth Callback] ========== DEBUG ==========');
+  console.log('[Auth Callback] request.url:', request.url);
+  console.log('[Auth Callback] requestUrl.toString():', requestUrl.toString());
+  console.log('[Auth Callback] requestUrl.origin:', requestUrl.origin);
+  console.log('[Auth Callback] requestUrl.host:', requestUrl.host);
   console.log('[Auth Callback] Code present:', !!code);
   console.log('[Auth Callback] Next:', next);
+  console.log('[Auth Callback] ========== END DEBUG ==========');
 
   // Handle OAuth errors from provider
   if (error_param) {

@@ -360,6 +360,13 @@ function ConversationItem({
   const [existingShares, setExistingShares] = useState<any[]>([]);
   const isShared = existingShares.length > 0;
   
+  // Team member sharing state
+  const [teamMembers, setTeamMembers] = useState<{id: string; name: string; email: string; avatar?: string}[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [isSharingWithMembers, setIsSharingWithMembers] = useState(false);
+  const [shareSuccess, setShareSuccess] = useState<string | null>(null);
+  
   // Fetch shares on mount to show icon
   useEffect(() => {
     const fetchShareStatus = async () => {
@@ -375,6 +382,83 @@ function ConversationItem({
     };
     fetchShareStatus();
   }, [conversation.id]);
+
+  // Fetch team members when share dialog opens
+  useEffect(() => {
+    if (!showShareDialog) return;
+    
+    const fetchTeamMembers = async () => {
+      setIsLoadingMembers(true);
+      try {
+        const res = await fetch('/api/brand-members');
+        if (res.ok) {
+          const data = await res.json();
+          // Filter out members who already have shares
+          const sharedUserIds = new Set(existingShares.map(s => s.userId));
+          const availableMembers = (data.members || []).filter(
+            (m: any) => !sharedUserIds.has(m.id)
+          );
+          setTeamMembers(availableMembers);
+        }
+      } catch (error) {
+        console.error('Error fetching team members:', error);
+      } finally {
+        setIsLoadingMembers(false);
+      }
+    };
+    fetchTeamMembers();
+  }, [showShareDialog, existingShares]);
+
+  // Share with selected team members
+  const handleShareWithMembers = async () => {
+    if (selectedMembers.size === 0) return;
+    
+    setIsSharingWithMembers(true);
+    setShareSuccess(null);
+    try {
+      const res = await fetch('/api/conversation-shares', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          userIds: Array.from(selectedMembers),
+          permission: 'write', // Collaborative access
+        }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        const count = data.sharesCreated || selectedMembers.size;
+        setShareSuccess(`Sent to ${count} teammate${count !== 1 ? 's' : ''}!`);
+        // Refresh shares list
+        const sharesRes = await fetch(`/api/conversation-shares?conversationId=${conversation.id}`);
+        if (sharesRes.ok) {
+          const sharesData = await sharesRes.json();
+          setExistingShares(sharesData.shares || []);
+        }
+        // Clear selection
+        setSelectedMembers(new Set());
+        // Remove shared members from available list
+        setTeamMembers(prev => prev.filter(m => !selectedMembers.has(m.id)));
+      }
+    } catch (error) {
+      console.error('Error sharing with members:', error);
+    } finally {
+      setIsSharingWithMembers(false);
+    }
+  };
+
+  const toggleMemberSelection = (memberId: string) => {
+    setSelectedMembers(prev => {
+      const next = new Set(prev);
+      if (next.has(memberId)) {
+        next.delete(memberId);
+      } else {
+        next.add(memberId);
+      }
+      return next;
+    });
+  };
   
   // Team share URL - only accessible by users in the same brand
   // Always use window.location.origin which reflects the actual domain
@@ -566,15 +650,123 @@ function ConversationItem({
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* Share with Team Members */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Share with teammates
+                </Label>
+                {selectedMembers.size > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {selectedMembers.size} selected
+                  </span>
+                )}
+              </div>
+              
+              {isLoadingMembers ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : teamMembers.length > 0 ? (
+                <div className="space-y-2 max-h-40 overflow-y-auto rounded-md border p-2">
+                  {teamMembers.map((member) => (
+                    <div
+                      key={member.id}
+                      onClick={() => toggleMemberSelection(member.id)}
+                      className={cn(
+                        "flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors",
+                        selectedMembers.has(member.id)
+                          ? "bg-primary/10 border border-primary/30"
+                          : "hover:bg-muted"
+                      )}
+                    >
+                      <div className="flex-shrink-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
+                        {member.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{member.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                      </div>
+                      {selectedMembers.has(member.id) && (
+                        <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-2">
+                  {existingShares.length > 0 
+                    ? "Already shared with all team members" 
+                    : "No other team members found"}
+                </p>
+              )}
+              
+              {selectedMembers.size > 0 && (
+                <Button
+                  onClick={handleShareWithMembers}
+                  disabled={isSharingWithMembers}
+                  className="w-full"
+                >
+                  {isSharingWithMembers ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Users className="mr-2 h-4 w-4" />
+                      Share with {selectedMembers.size} teammate{selectedMembers.size !== 1 ? 's' : ''}
+                    </>
+                  )}
+                </Button>
+              )}
+              
+              {shareSuccess && (
+                <p className="text-xs text-green-600 flex items-center gap-1">
+                  <Check className="h-3 w-3" />
+                  {shareSuccess} They&apos;ll get a notification.
+                </p>
+              )}
+              
+              {/* Show existing shares */}
+              {existingShares.length > 0 && (
+                <div className="pt-2 border-t">
+                  <p className="text-xs text-muted-foreground mb-2">Already shared with:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {existingShares.map((share) => (
+                      <span 
+                        key={share.id}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-muted text-xs"
+                      >
+                        {share.name || share.email}
+                        <span className={cn(
+                          "w-1.5 h-1.5 rounded-full",
+                          share.status === 'accepted' ? "bg-green-500" : "bg-yellow-500"
+                        )} />
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <Separator />
+
             {/* Collaborative Invite Link */}
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Anyone with this link can join and collaborate on this chat in real-time
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <LinkIcon className="h-4 w-4" />
+                Or share via link
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Anyone with this link can join and collaborate
               </p>
 
               {!inviteLink ? (
                 <Button
-                  variant="default"
+                  variant="outline"
                   onClick={handleGenerateInviteLink}
                   disabled={isGeneratingInvite}
                   className="w-full"
@@ -619,7 +811,7 @@ function ConversationItem({
                   </div>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <Check className="h-3 w-3 text-green-500" />
-                    Link ready • Share it with your teammates
+                    Link ready
                   </p>
                 </div>
               )}

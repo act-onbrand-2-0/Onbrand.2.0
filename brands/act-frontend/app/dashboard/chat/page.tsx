@@ -839,15 +839,10 @@ export default function ChatPage() {
     // Subscribe if we have a conversation - we'll filter messages on receipt
     if (!currentConversation || !userId) return;
     
-    // Skip subscription for conversations user owns that aren't collaborative
     const isOwner = currentConversation.user_id === userId;
-    if (isOwner && !isCollaborativeChat) {
-      console.log('Skipping real-time subscription - owner of non-collaborative chat');
-      return;
-    }
-
-    console.log('Setting up real-time subscription for chat:', currentConversation.id, 'isCollaborativeChat:', isCollaborativeChat, 'isOwner:', isOwner);
-
+    let channelInstance: ReturnType<typeof supabase.channel> | null = null;
+    let isMounted = true;
+    
     const handleNewMessage = async (payload: any) => {
       const newMessage = payload.new as any;
       console.log('Real-time message received:', newMessage);
@@ -902,35 +897,77 @@ export default function ChatPage() {
       });
     };
 
-    // Use both postgres_changes AND broadcast for reliability
-    const channel = supabase
-      .channel(`chat-messages-${currentConversation.id}`, {
-        config: { broadcast: { self: false } }
-      })
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${currentConversation.id}`,
-        },
-        handleNewMessage
-      )
-      // Also listen for broadcast messages (for immediate sync)
-      .on('broadcast', { event: 'new_message' }, (payload) => {
-        console.log('Broadcast message received:', payload);
-        if (payload.payload) {
-          handleNewMessage({ new: payload.payload });
+    const setupSubscription = () => {
+      console.log('Setting up real-time subscription for chat:', currentConversation.id, 'isCollaborativeChat:', isCollaborativeChat, 'isOwner:', isOwner);
+      
+      // Use both postgres_changes AND broadcast for reliability
+      channelInstance = supabase
+        .channel(`chat-messages-${currentConversation.id}`, {
+          config: { broadcast: { self: false } }
+        })
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${currentConversation.id}`,
+          },
+          handleNewMessage
+        )
+        // Also listen for broadcast messages (for immediate sync)
+        .on('broadcast', { event: 'new_message' }, (payload: any) => {
+          console.log('Broadcast message received:', payload);
+          if (payload.payload) {
+            handleNewMessage({ new: payload.payload });
+          }
+        })
+        .subscribe((status: string) => {
+          console.log('Chat messages subscription status:', status);
+        });
+    };
+
+    // For owners: check if conversation has any shares before deciding to skip
+    const checkAndSubscribe = async () => {
+      let shouldSubscribe = !isOwner || isCollaborativeChat;
+      
+      // If owner and not collaborative, double-check for any shares
+      if (isOwner && !isCollaborativeChat) {
+        try {
+          const response = await fetch(`/api/collaborative-messages?conversationId=${currentConversation.id}`);
+          if (response.ok) {
+            const result = await response.json();
+            if (result.isCollaborative) {
+              console.log('Detected collaborative mode - updating state');
+              if (isMounted) {
+                setIsCollaborativeChat(true);
+              }
+              shouldSubscribe = true;
+            }
+          }
+        } catch (err) {
+          console.error('Failed to check collaborative status:', err);
         }
-      })
-      .subscribe((status) => {
-        console.log('Chat messages subscription status:', status);
-      });
+      }
+      
+      if (!shouldSubscribe) {
+        console.log('Skipping real-time subscription - owner of non-collaborative chat');
+        return;
+      }
+      
+      if (isMounted) {
+        setupSubscription();
+      }
+    };
+
+    checkAndSubscribe();
 
     return () => {
-      console.log('Cleaning up chat messages subscription');
-      supabase.removeChannel(channel);
+      isMounted = false;
+      if (channelInstance) {
+        console.log('Cleaning up chat messages subscription');
+        supabase.removeChannel(channelInstance);
+      }
     };
   }, [currentConversation?.id, currentConversation?.user_id, isCollaborativeChat, userId, supabase, setAiMessages]);
 

@@ -164,19 +164,18 @@ export function getSiteUrl(): string {
     return window.location.origin;
   }
   
-  // Server-side: check environment variables
-  // Netlify provides these automatically:
-  // - DEPLOY_URL: The unique URL for this specific deploy (works for previews)
+  // Server-side: prioritize configured site URL for consistency
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
+  }
+  
+  // Netlify provides these automatically for deploy previews:
+  // - DEPLOY_URL: The unique URL for this specific deploy
   // - URL: The main site URL
   // - DEPLOY_PRIME_URL: The deploy URL or branch URL
   const deployUrl = process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_URL || process.env.URL;
   if (deployUrl) {
     return deployUrl;
-  }
-  
-  // Fallback to configured site URL
-  if (process.env.NEXT_PUBLIC_SITE_URL) {
-    return process.env.NEXT_PUBLIC_SITE_URL;
   }
   
   // Final fallback for local development
@@ -185,8 +184,16 @@ export function getSiteUrl(): string {
 
 /**
  * Gets brand-specific redirect URL for OAuth callbacks
+ * For OAuth, we must use the actual browser origin to preserve the subdomain
  */
 export function getBrandCallbackUrl(): string {
+  // Client-side: always use the actual browser origin for OAuth
+  // This ensures subdomain-based brands redirect correctly
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/auth/callback`;
+  }
+  
+  // Server-side: this shouldn't be called, but fallback to site URL
   return `${getSiteUrl()}/auth/callback`;
 }
 

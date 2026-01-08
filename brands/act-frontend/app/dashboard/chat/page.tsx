@@ -196,6 +196,11 @@ export default function ChatPage() {
       role: 'user', 
       content: text,
       attachments: attachmentDisplayInfo.length > 0 ? attachmentDisplayInfo : undefined,
+      // Include user info for collaborative chat display
+      user_id: userId || undefined,
+      sender_name: userName || 'You',
+      sender_email: userEmail || undefined,
+      is_current_user: true,
     };
     console.log('userMsg with attachments:', userMsg.attachments?.length, userMsg.attachments?.map(a => ({ name: a.name, previewLength: a.preview?.length })));
     setAiMessages(prev => [...prev, userMsg]);
@@ -418,7 +423,7 @@ export default function ChatPage() {
       setIsDeepResearchActive(false);
       setActiveToolCall(null);
     }
-  }, [aiMessages, selectedModel, supabase]);
+  }, [aiMessages, selectedModel, supabase, userId, userName, userEmail]);
 
   // Fetch user session and brand info
   useEffect(() => {
@@ -782,6 +787,95 @@ export default function ChatPage() {
 
     fetchMessages();
   }, [currentConversation, setAiMessages, userId, supabase]);
+
+  // Real-time subscription for collaborative chat messages
+  useEffect(() => {
+    // Only subscribe if we have a conversation and it's collaborative
+    if (!currentConversation || !isCollaborativeChat || !userId) return;
+
+    console.log('Setting up real-time subscription for collaborative chat:', currentConversation.id);
+
+    const channel = supabase
+      .channel(`messages:${currentConversation.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${currentConversation.id}`,
+        },
+        async (payload) => {
+          const newMessage = payload.new as any;
+          console.log('Real-time message received:', newMessage);
+
+          // Skip if this message is from the current user (we already added it locally)
+          if (newMessage.user_id === userId) {
+            console.log('Skipping own message');
+            return;
+          }
+
+          // Skip if we already have this message
+          setAiMessages(prev => {
+            if (prev.some(m => m.id === newMessage.id)) {
+              console.log('Skipping duplicate message');
+              return prev;
+            }
+
+            // Fetch sender info for the new message
+            const fetchSenderAndAdd = async () => {
+              let senderName = 'User';
+              let senderEmail = '';
+              
+              if (newMessage.user_id && newMessage.role === 'user') {
+                try {
+                  // Fetch user details via API
+                  const res = await fetch(`/api/user-info?userId=${newMessage.user_id}`);
+                  if (res.ok) {
+                    const userData = await res.json();
+                    senderName = userData.name || 'User';
+                    senderEmail = userData.email || '';
+                  }
+                } catch (err) {
+                  console.error('Failed to fetch sender info:', err);
+                }
+              } else if (newMessage.role === 'assistant') {
+                senderName = 'Assistant';
+              }
+
+              const enrichedMessage: ChatMessage = {
+                id: newMessage.id,
+                role: newMessage.role,
+                content: newMessage.content,
+                user_id: newMessage.user_id,
+                sender_name: senderName,
+                sender_email: senderEmail,
+                is_current_user: false,
+              };
+
+              setAiMessages(current => {
+                // Double-check we don't already have it
+                if (current.some(m => m.id === newMessage.id)) {
+                  return current;
+                }
+                return [...current, enrichedMessage];
+              });
+            };
+
+            fetchSenderAndAdd();
+            return prev; // Return unchanged for now, the async function will update
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('Collaborative messages subscription status:', status);
+      });
+
+    return () => {
+      console.log('Cleaning up collaborative messages subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [currentConversation?.id, isCollaborativeChat, userId, supabase, setAiMessages]);
 
   // Handle initial message from dashboard
   const initialMessageHandled = useRef(false);
@@ -1485,12 +1579,17 @@ export default function ChatPage() {
     }
   }, [pendingAutoSend, brandId, userId, isStreaming, sendMessage]);
 
-  // Messages are already in the correct format - include attachments for display
+  // Messages are already in the correct format - include attachments and collaborative info for display
   const displayMessages = aiMessages.map(m => ({
     id: m.id,
     role: m.role as 'user' | 'assistant' | 'system',
     content: m.content,
     attachments: m.attachments,
+    // Collaborative chat fields
+    user_id: m.user_id,
+    sender_name: m.sender_name,
+    sender_email: m.sender_email,
+    is_current_user: m.is_current_user,
   }));
 
   if (!userId || !brandId) {

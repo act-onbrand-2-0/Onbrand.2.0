@@ -160,9 +160,9 @@ export function ChatHeader({
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem
                 onClick={() => {
-                  // Use proper production URL, not localhost
-                  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://onbrandai.app';
-                  const shareUrl = `${baseUrl}${window.location.pathname}`;
+                  // Use window.location.origin which always reflects the actual domain
+                  // (including branch subdomains like chatbot.onbrandai.app)
+                  const shareUrl = `${window.location.origin}${window.location.pathname}`;
                   
                   if (navigator.share) {
                     navigator.share({

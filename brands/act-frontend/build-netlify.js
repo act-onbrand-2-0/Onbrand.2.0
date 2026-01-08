@@ -5,29 +5,49 @@ const { execSync } = require('child_process');
 
 console.log('Running Netlify build script...');
 
-// Netlify environment variables
+// Netlify environment variables - log them all for debugging
 const context = process.env.CONTEXT; // 'production', 'deploy-preview', 'branch-deploy'
 const branch = process.env.BRANCH; // Git branch name
-const deployUrl = process.env.DEPLOY_URL; // Full deploy URL from Netlify
+const deployUrl = process.env.DEPLOY_URL; // Unique URL for this deploy
+const deployPrimeUrl = process.env.DEPLOY_PRIME_URL; // Primary URL for branch deploys (with subdomain)
+const siteUrl = process.env.URL; // Primary site URL
+
+console.log('=== Netlify Environment ===');
+console.log(`CONTEXT: ${context}`);
+console.log(`BRANCH: ${branch}`);
+console.log(`DEPLOY_URL: ${deployUrl}`);
+console.log(`DEPLOY_PRIME_URL: ${deployPrimeUrl}`);
+console.log(`URL: ${siteUrl}`);
+console.log(`NEXT_PUBLIC_SITE_URL (before): ${process.env.NEXT_PUBLIC_SITE_URL}`);
+console.log('===========================');
 
 // Determine the site URL based on deploy context
 function getSiteUrl() {
-  // If explicitly set, use that
-  if (process.env.NEXT_PUBLIC_SITE_URL) {
-    return process.env.NEXT_PUBLIC_SITE_URL;
+  // For branch deploys, use DEPLOY_PRIME_URL which Netlify sets to branch subdomain
+  // e.g., https://chatbot.onbrandai.app for the 'chatbot' branch
+  if (context === 'branch-deploy' && deployPrimeUrl) {
+    console.log(`Using DEPLOY_PRIME_URL for branch deploy: ${deployPrimeUrl}`);
+    return deployPrimeUrl;
   }
   
-  // For branch deploys, construct subdomain URL: branch-name.onbrandai.app
+  // For branch deploys without DEPLOY_PRIME_URL, construct it ourselves
   if (context === 'branch-deploy' && branch && branch !== 'main' && branch !== 'master') {
     const branchSubdomain = branch.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    console.log(`Branch deploy detected: ${branch} -> ${branchSubdomain}.onbrandai.app`);
-    return `https://${branchSubdomain}.onbrandai.app`;
+    const constructedUrl = `https://${branchSubdomain}.onbrandai.app`;
+    console.log(`Constructed branch URL: ${constructedUrl}`);
+    return constructedUrl;
   }
   
-  // For deploy previews, use the Netlify deploy URL
-  if (context === 'deploy-preview' && deployUrl) {
-    console.log(`Deploy preview detected: ${deployUrl}`);
-    return deployUrl;
+  // For deploy previews, use DEPLOY_PRIME_URL or DEPLOY_URL
+  if (context === 'deploy-preview') {
+    const previewUrl = deployPrimeUrl || deployUrl;
+    console.log(`Using preview URL: ${previewUrl}`);
+    return previewUrl;
+  }
+  
+  // For production, use the configured URL or default
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
   }
   
   // Default to production URL

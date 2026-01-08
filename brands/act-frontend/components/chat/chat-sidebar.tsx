@@ -377,15 +377,11 @@ function ConversationItem({
   }, [conversation.id]);
   
   // Team share URL - only accessible by users in the same brand
-  // Use production URL, not localhost
-  const getBaseUrl = () => {
-    if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
-    if (typeof window !== 'undefined' && !window.location.origin.includes('localhost')) {
-      return window.location.origin;
-    }
-    return 'https://onbrandai.app';
-  };
-  const teamShareUrl = `${getBaseUrl()}/chat/${conversation.id}`;
+  // Always use window.location.origin which reflects the actual domain
+  // (including branch subdomains like chatbot.onbrandai.app)
+  const teamShareUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}/chat/${conversation.id}`
+    : '';
 
   const handleCopyTeamUrl = async () => {
     await navigator.clipboard.writeText(teamShareUrl);

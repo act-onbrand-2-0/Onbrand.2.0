@@ -29,20 +29,27 @@ export async function GET(request: Request) {
   const error_description = requestUrl.searchParams.get('error_description');
   const error_param = requestUrl.searchParams.get('error');
 
-  // Log for debugging (remove in production)
+  // Get the actual external hostname from headers (Netlify provides internal URL in request.url)
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const host = request.headers.get('host');
+  const actualHost = forwardedHost || host || requestUrl.host;
+  const protocol = request.headers.get('x-forwarded-proto') || 'https';
+  const actualOrigin = `${protocol}://${actualHost}`;
+
+  // Log for debugging
   console.log('[Auth Callback] ========== DEBUG ==========');
   console.log('[Auth Callback] request.url:', request.url);
-  console.log('[Auth Callback] requestUrl.toString():', requestUrl.toString());
-  console.log('[Auth Callback] requestUrl.origin:', requestUrl.origin);
-  console.log('[Auth Callback] requestUrl.host:', requestUrl.host);
+  console.log('[Auth Callback] x-forwarded-host:', forwardedHost);
+  console.log('[Auth Callback] host header:', host);
+  console.log('[Auth Callback] actualHost:', actualHost);
+  console.log('[Auth Callback] actualOrigin:', actualOrigin);
   console.log('[Auth Callback] Code present:', !!code);
-  console.log('[Auth Callback] Next:', next);
   console.log('[Auth Callback] ========== END DEBUG ==========');
 
   // Handle OAuth errors from provider
   if (error_param) {
     console.error('[Auth Callback] OAuth error:', error_param, error_description);
-    const loginUrl = new URL('/login', requestUrl.origin);
+    const loginUrl = new URL('/login', actualOrigin);
     loginUrl.searchParams.set('error', error_param);
     if (error_description) {
       loginUrl.searchParams.set('error_description', error_description);
@@ -79,15 +86,15 @@ export async function GET(request: Request) {
     
     if (error) {
       console.error('[Auth Callback] Session exchange error:', error.message);
-      return NextResponse.redirect(new URL(`/login?error=auth_failed&message=${encodeURIComponent(error.message)}`, requestUrl.origin));
+      return NextResponse.redirect(new URL(`/login?error=auth_failed&message=${encodeURIComponent(error.message)}`, actualOrigin));
     }
 
     if (data?.user) {
       console.log('[Auth Callback] User authenticated:', data.user.email);
       
-      // Successful auth - redirect to intended destination
-      // The destination is relative to the current origin (preserves subdomain)
-      const redirectUrl = new URL(next, requestUrl.origin);
+      // Successful auth - redirect to intended destination using actualOrigin
+      // This preserves the subdomain (e.g., chatbot.onbrandai.app) instead of Netlify deploy URL
+      const redirectUrl = new URL(next, actualOrigin);
       console.log('[Auth Callback] Redirecting to:', redirectUrl.toString());
       return NextResponse.redirect(redirectUrl);
     }
@@ -95,5 +102,5 @@ export async function GET(request: Request) {
 
   // No code provided - redirect to login
   console.error('[Auth Callback] No code provided');
-  return NextResponse.redirect(new URL('/login?error=no_code', requestUrl.origin));
+  return NextResponse.redirect(new URL('/login?error=no_code', actualOrigin));
 }

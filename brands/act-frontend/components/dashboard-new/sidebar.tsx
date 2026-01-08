@@ -152,7 +152,7 @@ export function DashboardSidebar({
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="ml-auto flex items-center gap-1">
-              <NotificationBell />
+              <NotificationBell align="start" />
               <button 
                 onClick={toggleSidebar}
                 className="p-1 hover:bg-accent rounded transition-colors"
@@ -182,7 +182,7 @@ export function DashboardSidebar({
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem className="w-auto">
-                    <NotificationBell />
+                    <NotificationBell align="start" />
                   </SidebarMenuItem>
                 </>
               )}

@@ -12,8 +12,14 @@ import {
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { ArrowUp, Square, Paperclip, ChevronDown, Check, X, FileText, Image as ImageIcon, Globe, Folder, MessageSquare, GraduationCap, Minimize2, BookOpen, Briefcase, Sparkles, Server } from 'lucide-react';
-import { MCPServerSelector } from './mcp-server-selector';
+import { MCPServerSelector, type MCPServer } from './mcp-server-selector';
 import Image from 'next/image';
 
 // Provider Logo Components
@@ -445,6 +451,7 @@ interface ChatInputProps {
 	brandId?: string;
 	selectedMcpServerIds?: string[];
 	onMcpServerSelectionChange?: (serverIds: string[]) => void;
+	onMcpServersLoaded?: (servers: MCPServer[]) => void;
 }
 
 export function ChatInput({
@@ -470,16 +477,53 @@ export function ChatInput({
 	brandId,
 	selectedMcpServerIds = [],
 	onMcpServerSelectionChange,
+	onMcpServersLoaded,
 }: ChatInputProps) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [prediction, setPrediction] = useState<string>('');
 	const [useWebSearch, setUseWebSearch] = useState<boolean>(false);
 	const [useDeepResearch, setUseDeepResearch] = useState<boolean>(false);
+	const [mcpServers, setMcpServers] = useState<MCPServer[]>([]);
+	const [isMcpLoading, setIsMcpLoading] = useState(false);
   const selectedModel = AI_MODELS.find(m => m.id === model) || AI_MODELS[0];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const predictionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch MCP servers when brandId changes
+  useEffect(() => {
+    if (!brandId) return;
+    
+    const fetchServers = async () => {
+      setIsMcpLoading(true);
+      try {
+        const response = await fetch(`/api/mcp/servers?brandId=${brandId}`);
+        const data = await response.json();
+        if (response.ok && data.servers) {
+          setMcpServers(data.servers);
+          onMcpServersLoaded?.(data.servers);
+        }
+      } catch (error) {
+        console.error('Failed to fetch MCP servers:', error);
+      } finally {
+        setIsMcpLoading(false);
+      }
+    };
+    
+    fetchServers();
+  }, [brandId, onMcpServersLoaded]);
+
+  // Toggle MCP server selection
+  const handleToggleMcpServer = (serverId: string) => {
+    if (!onMcpServerSelectionChange) return;
+    const isSelected = selectedMcpServerIds.includes(serverId);
+    if (isSelected) {
+      onMcpServerSelectionChange(selectedMcpServerIds.filter(id => id !== serverId));
+    } else {
+      onMcpServerSelectionChange([...selectedMcpServerIds, serverId]);
+    }
+  };
 
   // Clear features when switching to a model that doesn't support them
   useEffect(() => {
@@ -875,7 +919,10 @@ export function ChatInput({
 										onClick={() => setUseWebSearch(prev => !prev)}
 										className="flex items-center justify-between gap-2"
 									>
-										<span>Web Search</span>
+										<div className="flex items-center gap-2">
+											<Globe className="size-4" />
+											<span>Web Search</span>
+										</div>
 										{useWebSearch ? <Check className="size-4" /> : null}
 									</DropdownMenuItem>
 								)}
@@ -885,9 +932,68 @@ export function ChatInput({
 										onClick={() => setUseDeepResearch(prev => !prev)}
 										className="flex items-center justify-between gap-2"
 									>
-										<span>Deep Research</span>
+										<div className="flex items-center gap-2">
+											<Sparkles className="size-4" />
+											<span>Deep Research</span>
+										</div>
 										{useDeepResearch ? <Check className="size-4" /> : null}
 									</DropdownMenuItem>
+								)}
+								{/* MCP Servers submenu */}
+								{mcpServers.length > 0 && (
+									<DropdownMenuSub>
+										<DropdownMenuSubTrigger className="flex items-center gap-2">
+											<Server className="size-4" />
+											<span>MCP Servers</span>
+											{selectedMcpServerIds.length > 0 && (
+												<span className="ml-auto text-xs text-muted-foreground">
+													{selectedMcpServerIds.length}
+												</span>
+											)}
+										</DropdownMenuSubTrigger>
+										<DropdownMenuSubContent className="w-56">
+											<TooltipProvider delayDuration={300}>
+												{mcpServers.map((server) => {
+													const isSelected = selectedMcpServerIds.includes(server.id);
+													const isDisabled = !server.enabled;
+													const menuItem = (
+														<DropdownMenuItem
+															key={server.id}
+															onClick={(e) => {
+																e.preventDefault();
+																if (!isDisabled) handleToggleMcpServer(server.id);
+															}}
+															disabled={isDisabled}
+															className={cn(
+																"flex items-center justify-between gap-2",
+																isDisabled && "opacity-50"
+															)}
+														>
+															<div className="flex items-center gap-2">
+																<Server className="size-4" />
+																<span>{server.name}</span>
+															</div>
+															{isSelected ? <Check className="size-4 text-green-500" /> : null}
+														</DropdownMenuItem>
+													);
+													
+													if (server.description) {
+														return (
+															<Tooltip key={server.id}>
+																<TooltipTrigger asChild>
+																	{menuItem}
+																</TooltipTrigger>
+																<TooltipContent side="right" className="max-w-[200px]">
+																	<p className="text-xs">{server.description}</p>
+																</TooltipContent>
+															</Tooltip>
+														);
+													}
+													return menuItem;
+												})}
+											</TooltipProvider>
+										</DropdownMenuSubContent>
+									</DropdownMenuSub>
 								)}
 							</DropdownMenuContent>
 						</DropdownMenu>
@@ -940,15 +1046,22 @@ export function ChatInput({
               </DropdownMenuContent>
             </DropdownMenu>
 
-						{/* MCP Server Selector */}
-						{brandId && onMcpServerSelectionChange && (
-							<MCPServerSelector
-								brandId={brandId}
-								selectedServerIds={selectedMcpServerIds}
-								onSelectionChange={onMcpServerSelectionChange}
-								disabled={disabled || !isReady}
-							/>
-						)}
+						{/* MCP Tools active chips - show each selected server by name */}
+						{selectedMcpServerIds.map((serverId) => {
+							const server = mcpServers.find(s => s.id === serverId);
+							if (!server) return null;
+							return (
+								<button
+									key={serverId}
+									onClick={() => handleToggleMcpServer(serverId)}
+									className="group ml-1 inline-flex items-center gap-1.5 rounded-md bg-muted border border-border px-2.5 py-1 text-xs text-foreground hover:bg-muted/80 transition-colors"
+								>
+									<Server className="size-3.5" />
+									<span>{server.name}</span>
+									<X className="size-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+								</button>
+							);
+						})}
 
 						{/* Web Search active chip */}
 						{useWebSearch && (

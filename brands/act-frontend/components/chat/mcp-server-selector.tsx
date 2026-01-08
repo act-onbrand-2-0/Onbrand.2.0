@@ -11,15 +11,58 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { 
   Server, 
   ChevronDown, 
   Loader2, 
   CheckCircle, 
   XCircle,
-  Settings2
+  Settings2,
+  Search,
+  Globe,
+  Database,
+  FileText,
+  Code,
+  Zap,
+  Bot,
+  Plug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// Icon mapping for known MCP servers
+const SERVER_ICONS: Record<string, React.ElementType> = {
+  'brave': Search,
+  'search': Search,
+  'web': Globe,
+  'simplicate': Database,
+  'simpl': Database,
+  'database': Database,
+  'db': Database,
+  'file': FileText,
+  'document': FileText,
+  'code': Code,
+  'github': Code,
+  'api': Zap,
+  'assistant': Bot,
+  'default': Plug,
+};
+
+// Get icon for a server based on its name
+function getServerIcon(serverName: string): React.ElementType {
+  const nameLower = serverName.toLowerCase();
+  for (const [key, icon] of Object.entries(SERVER_ICONS)) {
+    if (nameLower.includes(key)) {
+      return icon;
+    }
+  }
+  return SERVER_ICONS.default;
+}
 
 export interface MCPServer {
   id: string;
@@ -57,9 +100,9 @@ export function MCPServerSelector({
       const data = await response.json();
       
       if (response.ok && data.servers) {
-        // Only show enabled servers at the brand level
-        const enabledServers = data.servers.filter((s: MCPServer) => s.enabled);
-        setServers(enabledServers);
+        // Show all servers so users can see what's available
+        // The 'enabled' field indicates if the server is active at the brand level
+        setServers(data.servers);
       }
     } catch (error) {
       console.error('Failed to fetch MCP servers:', error);
@@ -82,7 +125,8 @@ export function MCPServerSelector({
   };
 
   const handleSelectAll = () => {
-    onSelectionChange(servers.map(s => s.id));
+    // Only select enabled servers
+    onSelectionChange(servers.filter(s => s.enabled).map(s => s.id));
   };
 
   const handleSelectNone = () => {
@@ -148,36 +192,60 @@ export function MCPServerSelector({
         
         {servers.map((server) => {
           const isSelected = selectedServerIds.includes(server.id);
-          return (
+          const isDisabledAtBrand = !server.enabled;
+          const ServerIcon = getServerIcon(server.name);
+          
+          const menuItem = (
             <DropdownMenuItem
               key={server.id}
-              className="flex items-start gap-3 cursor-pointer"
+              className={cn(
+                "flex items-start gap-3 cursor-pointer",
+                isDisabledAtBrand && "opacity-50"
+              )}
+              disabled={isDisabledAtBrand}
               onSelect={(e) => {
                 e.preventDefault();
-                handleToggleServer(server.id);
+                if (!isDisabledAtBrand) {
+                  handleToggleServer(server.id);
+                }
               }}
             >
               <Checkbox
                 checked={isSelected}
+                disabled={isDisabledAtBrand}
                 className="mt-0.5"
               />
+              <ServerIcon className="size-4 mt-0.5 shrink-0 text-muted-foreground" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="font-medium text-sm truncate">{server.name}</span>
-                  {isSelected ? (
+                  {isDisabledAtBrand ? (
+                    <span className="text-[10px] text-muted-foreground">(disabled)</span>
+                  ) : isSelected ? (
                     <CheckCircle className="size-3 text-green-500 shrink-0" />
-                  ) : (
-                    <XCircle className="size-3 text-muted-foreground/50 shrink-0" />
-                  )}
+                  ) : null}
                 </div>
-                {server.description && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    {server.description}
-                  </p>
-                )}
               </div>
             </DropdownMenuItem>
           );
+
+          // Wrap with tooltip if there's a description
+          if (server.description) {
+            return (
+              <TooltipProvider key={server.id} delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {menuItem}
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-[200px]">
+                    <p className="text-xs">{server.description}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          }
+          
+          return menuItem;
         })}
         
         {servers.length === 0 && !isLoading && (

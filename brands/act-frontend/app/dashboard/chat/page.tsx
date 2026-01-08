@@ -341,24 +341,63 @@ export default function ChatPage() {
       
       // Add assistant message after streaming completes
       if (cleanContent) {
-        setAiMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: cleanContent }]);
+        // Clear streaming content FIRST to avoid visual jump, then add message
+        setStreamingContent('');
         setActiveToolCall(null);
+        setAiMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: cleanContent }]);
         
-        // Save to DB
+        // Save to DB in background (don't await to avoid UI delay)
         if (conversationRef.current) {
-          await saveMessageToDb({
-            conversation_id: conversationRef.current.id,
+          const convId = conversationRef.current.id;
+          // Fire and forget - save in background
+          saveMessageToDb({
+            conversation_id: convId,
             role: 'assistant',
             content: fullContent,
-          });
-          await supabase
-            .from('conversations')
-            .update({ last_message_at: new Date().toISOString() })
-            .eq('id', conversationRef.current.id);
+          }).then(() => {
+            supabase
+              .from('conversations')
+              .update({ last_message_at: new Date().toISOString() })
+              .eq('id', convId);
+          }).catch(err => console.error('Failed to save message:', err));
         }
       }
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
+      if ((err as Error).name === 'AbortError') {
+        // User stopped generation - preserve partial content and save to DB
+        setStreamingContent(prev => {
+          if (prev && prev.trim()) {
+            // Clean tool markers from partial content
+            const cleanPartial = prev
+              .replace(/\n?\[TOOL_CALL:[^\]]+\]\n?/g, '')
+              .replace(/\n?\[TOOL_RESULT:[^\]]+\]\n?/g, '');
+            const stoppedContent = cleanPartial + '\n\n*(Generation stopped)*';
+            
+            // Add partial response as a message with indicator
+            setAiMessages(messages => [...messages, { 
+              id: crypto.randomUUID(), 
+              role: 'assistant', 
+              content: stoppedContent
+            }]);
+            
+            // Save partial response to database
+            if (conversationRef.current) {
+              const convId = conversationRef.current.id;
+              saveMessageToDb({
+                conversation_id: convId,
+                role: 'assistant',
+                content: stoppedContent,
+              }).then(() => {
+                supabase
+                  .from('conversations')
+                  .update({ last_message_at: new Date().toISOString() })
+                  .eq('id', convId);
+              }).catch(err => console.error('Failed to save partial message:', err));
+            }
+          }
+          return ''; // Clear streaming content
+        });
+      } else {
         console.error('Chat error:', err);
         // Show error as assistant message
         const errorMessage = (err as Error).message || 'An error occurred while processing your request.';
@@ -370,8 +409,8 @@ export default function ChatPage() {
       }
     } finally {
       setIsStreaming(false);
-      setStreamingContent('');
       setIsDeepResearchActive(false);
+      setActiveToolCall(null);
     }
   }, [aiMessages, selectedModel, supabase]);
 
@@ -889,6 +928,32 @@ export default function ChatPage() {
       setAiMessages([]);
     }
   }, [currentConversation, setAiMessages, supabase]);
+
+  // Rename conversation
+  const handleRenameConversation = useCallback(async (conversationId: string, newTitle: string) => {
+    console.log('Renaming conversation:', conversationId, 'to:', newTitle);
+    
+    const { error } = await supabase
+      .from('conversations')
+      .update({ title: newTitle })
+      .eq('id', conversationId);
+
+    if (error) {
+      console.error('Failed to rename conversation:', error.message);
+      alert(`Failed to rename: ${error.message}`);
+      return;
+    }
+
+    // Update local state
+    setConversations((prev) => 
+      prev.map((c) => c.id === conversationId ? { ...c, title: newTitle } : c)
+    );
+    
+    // Update current conversation if it's the one being renamed
+    if (currentConversation?.id === conversationId) {
+      setCurrentConversation((prev) => prev ? { ...prev, title: newTitle } : null);
+    }
+  }, [currentConversation, supabase]);
 
   // Archive conversation
   const handleArchiveConversation = useCallback(async (conversationId: string) => {

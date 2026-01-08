@@ -461,11 +461,11 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
     console.log('Normalized messages (first 1000 chars):', JSON.stringify(normalizedMessages, null, 2).slice(0, 1000));
     console.log('=== END DEBUG ===');
 
-    // Get MCP tools for this brand (filtered by selected server IDs if provided)
-    const { tools: mcpTools, cleanup: cleanupMCP } = await getMCPTools(
-      brandId, 
-      mcpServerIds.length > 0 ? mcpServerIds : undefined
-    );
+    // Get MCP tools only if the user has explicitly selected specific servers
+    // If no servers selected, don't include any MCP tools (user must opt-in)
+    const { tools: mcpTools, cleanup: cleanupMCP } = mcpServerIds.length > 0
+      ? await getMCPTools(brandId, mcpServerIds)
+      : { tools: {}, cleanup: async () => {} };
     const hasMCPTools = Object.keys(mcpTools).length > 0;
 
     if (hasMCPTools) {

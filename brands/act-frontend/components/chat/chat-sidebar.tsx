@@ -46,6 +46,7 @@ import {
   Link as LinkIcon,
   Globe,
   Loader2,
+  Search,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -68,6 +69,7 @@ interface ChatSidebarProps {
   onNewChat: () => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
+  onRenameConversation?: (id: string, title: string) => void;
   onArchiveConversation?: (id: string) => void;
   onToggleVisibility?: (id: string, visibility: 'private' | 'shared') => void;
   onCollapse?: () => void;
@@ -85,6 +87,7 @@ export function ChatSidebar({
   onNewChat,
   onSelectConversation,
   onDeleteConversation,
+  onRenameConversation,
   onArchiveConversation,
   onToggleVisibility,
   onCollapse,
@@ -92,6 +95,16 @@ export function ChatSidebar({
   userName,
   userEmail,
 }: ChatSidebarProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchDialog, setShowSearchDialog] = useState(false);
+  
+  // Filter conversations by search query
+  const filteredConversations = searchQuery.trim()
+    ? conversations.filter(conv => 
+        conv.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : conversations;
+
   // Group conversations by date
   const today = new Date();
   const yesterday = new Date(today);
@@ -106,7 +119,7 @@ export function ChatSidebar({
     older: [] as Conversation[],
   };
 
-  conversations.forEach((conv) => {
+  filteredConversations.forEach((conv) => {
     const date = new Date(conv.last_message_at);
     if (date.toDateString() === today.toDateString()) {
       groupedConversations.today.push(conv);
@@ -161,34 +174,110 @@ export function ChatSidebar({
 
   return (
     <div className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-3">
-        <div className="flex items-center gap-1">
-          {onCollapse && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="size-8"
-              onClick={onCollapse}
-              title="Collapse sidebar"
-            >
-              <PanelLeft className="size-4" />
-            </Button>
-          )}
+      {/* Header with collapse button */}
+      <div className="flex items-center px-3 py-2">
+        {onCollapse && (
           <Button 
             variant="ghost" 
             size="icon" 
             className="size-8"
-            onClick={() => {
-              console.log('+ button clicked in sidebar');
-              onNewChat();
-            }}
-            title="New Chat"
+            onClick={onCollapse}
+            title="Collapse sidebar"
           >
-            <Plus className="size-4" />
+            <PanelLeft className="size-4" />
           </Button>
-        </div>
+        )}
       </div>
+      
+      {/* Action Buttons - Vertical list with labels */}
+      <div className="px-2 space-y-1">
+        <button
+          onClick={() => {
+            console.log('New chat clicked in sidebar');
+            onNewChat();
+          }}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent transition-colors"
+        >
+          <Plus className="size-4" />
+          <span>New chat</span>
+        </button>
+        <button
+          onClick={() => setShowSearchDialog(true)}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent transition-colors"
+        >
+          <Search className="size-4" />
+          <span>Search chats</span>
+        </button>
+      </div>
+
+      {/* Search Dialog */}
+      <Dialog open={showSearchDialog} onOpenChange={setShowSearchDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="sr-only">Search chats</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Search chats..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-10"
+                autoFocus
+              />
+            </div>
+            <div className="max-h-[400px] overflow-y-auto space-y-1">
+              {searchQuery.trim() ? (
+                filteredConversations.length > 0 ? (
+                  filteredConversations.map((conv) => (
+                    <button
+                      key={conv.id}
+                      onClick={() => {
+                        onSelectConversation(conv.id);
+                        setShowSearchDialog(false);
+                        setSearchQuery('');
+                      }}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+                    >
+                      <MessageSquare className="size-4 shrink-0 opacity-50" />
+                      <span className="truncate">{conv.title}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">No chats found</p>
+                )
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      onNewChat();
+                      setShowSearchDialog(false);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm bg-accent hover:bg-accent/80 transition-colors"
+                  >
+                    <Plus className="size-4" />
+                    <span>New chat</span>
+                  </button>
+                  {conversations.slice(0, 10).map((conv) => (
+                    <button
+                      key={conv.id}
+                      onClick={() => {
+                        onSelectConversation(conv.id);
+                        setShowSearchDialog(false);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+                    >
+                      <MessageSquare className="size-4 shrink-0 opacity-50" />
+                      <span className="truncate">{conv.title}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Conversations List */}
       <ScrollArea className="flex-1 px-2 py-2">
@@ -353,7 +442,9 @@ function ConversationItem({
         <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-50" />
         <span className="flex-1 truncate min-w-0 pr-1">{conversation.title}</span>
         {isShared && (
-          <Users className="h-3 w-3 shrink-0 text-muted-foreground" title="Shared with team" />
+          <span title="Shared with team">
+            <Users className="h-3 w-3 shrink-0 text-muted-foreground" />
+          </span>
         )}
         {!isOwner && (
           <span className="text-[9px] text-muted-foreground shrink-0">shared</span>

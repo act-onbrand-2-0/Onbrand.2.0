@@ -60,6 +60,7 @@ import {
   Check,
   Link as LinkIcon,
   Mail,
+  Search,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
@@ -106,6 +107,7 @@ interface ProjectSidebarProps {
   onSelectProject: (projectId: string | null) => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
+  onRenameConversation?: (id: string, title: string) => void;
   onDeleteProject: (id: string) => void;
   onRenameProject: (id: string, name: string) => void;
   onUploadFile?: (projectId: string, file: File) => Promise<void>;
@@ -149,6 +151,7 @@ export function ProjectSidebar({
   onSelectProject,
   onSelectConversation,
   onDeleteConversation,
+  onRenameConversation,
   onDeleteProject,
   onRenameProject,
   onUploadFile,
@@ -169,6 +172,15 @@ export function ProjectSidebar({
   const [newProjectName, setNewProjectName] = useState('');
   const [selectedColor, setSelectedColor] = useState(PROJECT_COLORS[0]);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchDialog, setShowSearchDialog] = useState(false);
+
+  // Filter conversations by search query
+  const filteredConversations = searchQuery.trim()
+    ? conversations.filter(conv => 
+        conv.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : conversations;
 
   // Toggle project expansion
   const toggleProject = (projectId: string) => {
@@ -202,7 +214,7 @@ export function ProjectSidebar({
   );
   
   // Separate shared conversations (conversations owned by others)
-  const sharedConversations = conversations.filter(
+  const sharedConversations = filteredConversations.filter(
     (conv: any) => currentUserId && conv.user_id && conv.user_id !== currentUserId
   );
   
@@ -215,7 +227,7 @@ export function ProjectSidebar({
   );
   
   // Filter out shared conversations from the main list
-  const ownedConversations = conversations.filter(
+  const ownedConversations = filteredConversations.filter(
     (conv: any) => !currentUserId || !conv.user_id || conv.user_id === currentUserId
   );
 
@@ -299,6 +311,15 @@ export function ProjectSidebar({
           variant="ghost"
           size="icon"
           className="size-10"
+          onClick={() => setShowSearchDialog(true)}
+          title="Search chats"
+        >
+          <Search className="size-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-10"
           onClick={() => setShowNewProjectDialog(true)}
           title="New Folder"
         >
@@ -307,49 +328,192 @@ export function ProjectSidebar({
         
         {/* New Project Dialog - needed for collapsed view too */}
         <Dialog open={showNewProjectDialog} onOpenChange={setShowNewProjectDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Folder</DialogTitle>
-              <DialogDescription>
-                Create a new folder to organize your conversations.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
+          <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
+            {/* Header with gradient accent */}
+            <div className="relative px-6 pt-6 pb-4">
+              <div 
+                className="absolute inset-0 opacity-10" 
+                style={{ 
+                  background: `linear-gradient(135deg, ${selectedColor} 0%, transparent 60%)` 
+                }} 
+              />
+              <DialogHeader className="relative">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="size-10 rounded-xl flex items-center justify-center shadow-lg"
+                    style={{ backgroundColor: selectedColor }}
+                  >
+                    <FolderPlus className="size-5 text-white" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-xl font-semibold">Create New Project</DialogTitle>
+                    <DialogDescription className="text-sm">
+                      Organize your conversations in a project folder
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+            </div>
+
+            {/* Content */}
+            <div className="px-6 py-5 space-y-6">
+              {/* Project Name */}
               <div className="space-y-2">
-                <Label htmlFor="collapsed-project-name">Folder Name</Label>
+                <Label htmlFor="collapsed-project-name" className="text-sm font-medium">
+                  Project Name
+                </Label>
                 <Input
                   id="collapsed-project-name"
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="Enter folder name..."
+                  placeholder="e.g., Marketing Campaign"
+                  className="h-11"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newProjectName.trim() && !isCreatingProject) {
+                      handleCreateProject();
+                    }
+                  }}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Color</Label>
-                <div className="flex flex-wrap gap-2">
+
+              {/* Color Selection */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Project Color</Label>
+                <div className="flex flex-wrap gap-3">
                   {PROJECT_COLORS.map((color) => (
                     <button
                       key={color}
                       type="button"
                       className={cn(
-                        'size-6 rounded-full transition-all',
-                        selectedColor === color && 'ring-2 ring-offset-2 ring-primary'
+                        'size-9 rounded-full transition-all duration-200 hover:scale-110 focus:outline-none',
+                        selectedColor === color 
+                          ? 'ring-2 ring-offset-2 ring-offset-background ring-primary scale-110 shadow-lg' 
+                          : 'hover:shadow-md'
                       )}
                       style={{ backgroundColor: color }}
                       onClick={() => setSelectedColor(color)}
+                      title={`Select ${color}`}
                     />
                   ))}
                 </div>
               </div>
+
+              {/* Preview */}
+              {newProjectName.trim() && (
+                <div className="pt-2">
+                  <Label className="text-sm font-medium text-muted-foreground mb-2 block">Preview</Label>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
+                    <div 
+                      className="size-8 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: selectedColor }}
+                    >
+                      <Folder className="size-4 text-white" />
+                    </div>
+                    <span className="font-medium">{newProjectName.trim()}</span>
+                  </div>
+                </div>
+              )}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowNewProjectDialog(false)}>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-muted/30 border-t flex justify-end gap-3">
+              <Button 
+                variant="ghost" 
+                onClick={() => setShowNewProjectDialog(false)} 
+                disabled={isCreatingProject}
+              >
                 Cancel
               </Button>
-              <Button onClick={handleCreateProject} disabled={!newProjectName.trim() || isCreatingProject}>
-                {isCreatingProject ? 'Creating...' : 'Create Folder'}
+              <Button 
+                onClick={handleCreateProject} 
+                disabled={!newProjectName.trim() || isCreatingProject}
+                style={{ backgroundColor: newProjectName.trim() ? selectedColor : undefined }}
+                className={cn(
+                  newProjectName.trim() && 'hover:opacity-90 text-white'
+                )}
+              >
+                {isCreatingProject ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <FolderPlus className="mr-2 h-4 w-4" />
+                    Create Project
+                  </>
+                )}
               </Button>
-            </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Search Dialog - needed for collapsed view too */}
+        <Dialog open={showSearchDialog} onOpenChange={setShowSearchDialog}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="sr-only">Search chats</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search chats..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-10"
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-[400px] overflow-y-auto space-y-1">
+                {searchQuery.trim() ? (
+                  filteredConversations.length > 0 ? (
+                    filteredConversations.map((conv) => (
+                      <button
+                        key={conv.id}
+                        onClick={() => {
+                          onSelectConversation(conv.id);
+                          setShowSearchDialog(false);
+                          setSearchQuery('');
+                        }}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+                      >
+                        <MessageSquare className="size-4 shrink-0 opacity-50" />
+                        <span className="truncate">{conv.title}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">No chats found</p>
+                  )
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        onNewChat(currentProjectId || undefined);
+                        setShowSearchDialog(false);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm bg-accent hover:bg-accent/80 transition-colors"
+                    >
+                      <PenLine className="size-4" />
+                      <span>New chat</span>
+                    </button>
+                    {conversations.slice(0, 10).map((conv) => (
+                      <button
+                        key={conv.id}
+                        onClick={() => {
+                          onSelectConversation(conv.id);
+                          setShowSearchDialog(false);
+                        }}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+                      >
+                        <MessageSquare className="size-4 shrink-0 opacity-50" />
+                        <span className="truncate">{conv.title}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
@@ -358,10 +522,8 @@ export function ProjectSidebar({
 
   return (
     <div className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground overflow-hidden">
-      {/* Logo Header */}
-      
-      {/* Action Buttons Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-sidebar-border">
+      {/* Header with collapse button */}
+      <div className="flex items-center px-3 py-2">
         {onCollapse && (
           <Button
             variant="ghost"
@@ -373,27 +535,101 @@ export function ProjectSidebar({
             <PanelLeft className="size-4" />
           </Button>
         )}
-        <div className="flex items-center gap-1 ml-auto">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={() => onNewChat(currentProjectId || undefined)}
-            title="New Chat"
-          >
-            <PenLine className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={() => setShowNewProjectDialog(true)}
-            title="New Folder"
-          >
-            <FolderPlus className="size-4" />
-          </Button>
-        </div>
       </div>
+      
+      {/* Action Buttons - Vertical list with labels */}
+      <div className="px-2 space-y-1">
+        <button
+          onClick={() => onNewChat(currentProjectId || undefined)}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent transition-colors"
+        >
+          <PenLine className="size-4" />
+          <span>New chat</span>
+        </button>
+        <button
+          onClick={() => setShowSearchDialog(true)}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent transition-colors"
+        >
+          <Search className="size-4" />
+          <span>Search chats</span>
+        </button>
+        <button
+          onClick={() => setShowNewProjectDialog(true)}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent transition-colors"
+        >
+          <FolderPlus className="size-4" />
+          <span>New project</span>
+        </button>
+      </div>
+
+      {/* Search Dialog */}
+      <Dialog open={showSearchDialog} onOpenChange={setShowSearchDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="sr-only">Search chats</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Search chats..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-10"
+                autoFocus
+              />
+            </div>
+            <div className="max-h-[400px] overflow-y-auto space-y-1">
+              {searchQuery.trim() ? (
+                filteredConversations.length > 0 ? (
+                  filteredConversations.map((conv) => (
+                    <button
+                      key={conv.id}
+                      onClick={() => {
+                        onSelectConversation(conv.id);
+                        setShowSearchDialog(false);
+                        setSearchQuery('');
+                      }}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+                    >
+                      <MessageSquare className="size-4 shrink-0 opacity-50" />
+                      <span className="truncate">{conv.title}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">No chats found</p>
+                )
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      onNewChat(currentProjectId || undefined);
+                      setShowSearchDialog(false);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm bg-accent hover:bg-accent/80 transition-colors"
+                  >
+                    <PenLine className="size-4" />
+                    <span>New chat</span>
+                  </button>
+                  {conversations.slice(0, 10).map((conv) => (
+                    <button
+                      key={conv.id}
+                      onClick={() => {
+                        onSelectConversation(conv.id);
+                        setShowSearchDialog(false);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+                    >
+                      <MessageSquare className="size-4 shrink-0 opacity-50" />
+                      <span className="truncate">{conv.title}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Projects & Conversations List */}
       <ScrollArea className="flex-1 px-2 py-2">
@@ -430,6 +666,7 @@ export function ProjectSidebar({
                 onNewChat={() => onNewChat(project.id)}
                 onSelectConversation={onSelectConversation}
                 onDeleteConversation={onDeleteConversation}
+                onRenameConversation={onRenameConversation}
                 onDeleteProject={() => onDeleteProject(project.id)}
                 onRenameProject={(name) => onRenameProject(project.id, name)}
                 onUploadFile={onUploadFile ? (file) => onUploadFile(project.id, file) : undefined}
@@ -439,11 +676,11 @@ export function ProjectSidebar({
               />
             ))}
 
-            {/* General conversations (uncategorized) */}
+            {/* Chat history (uncategorized conversations) */}
             {conversationsByProject['uncategorized']?.length > 0 && (
               <div className="mt-4">
                 <h3 className="px-3 py-2 text-xs font-medium text-muted-foreground">
-                  General
+                  Chat history
                 </h3>
                 <div className="space-y-1">
                   {conversationsByProject['uncategorized'].map((conv) => (
@@ -454,6 +691,7 @@ export function ProjectSidebar({
                       isOwner={!currentUserId || conv.user_id === currentUserId}
                       onSelect={() => onSelectConversation(conv.id)}
                       onDelete={() => onDeleteConversation(conv.id)}
+                      onRename={onRenameConversation ? (title) => onRenameConversation(conv.id, title) : undefined}
                       onArchive={
                         onArchiveConversation
                           ? () => onArchiveConversation(conv.id)
@@ -543,56 +781,123 @@ export function ProjectSidebar({
 
       {/* New Project Dialog */}
       <Dialog open={showNewProjectDialog} onOpenChange={setShowNewProjectDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create New Project</DialogTitle>
-            <DialogDescription>
-              Create a project folder to organize your chats.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="project-name">Project Name</Label>
+        <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
+          {/* Header with gradient accent */}
+          <div className="relative px-6 pt-6 pb-4">
+            <div 
+              className="absolute inset-0 opacity-10" 
+              style={{ 
+                background: `linear-gradient(135deg, ${selectedColor} 0%, transparent 60%)` 
+              }} 
+            />
+            <DialogHeader className="relative">
+              <div className="flex items-center gap-3">
+                <div 
+                  className="size-10 rounded-xl flex items-center justify-center shadow-lg"
+                  style={{ backgroundColor: selectedColor }}
+                >
+                  <FolderPlus className="size-5 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-semibold">Create New Project</DialogTitle>
+                  <DialogDescription className="text-sm">
+                    Organize your conversations in a project folder
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+
+          {/* Content */}
+          <div className="px-6 py-5 space-y-6">
+            {/* Project Name */}
+            <div className="space-y-2">
+              <Label htmlFor="project-name" className="text-sm font-medium">
+                Project Name
+              </Label>
               <Input
                 id="project-name"
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
                 placeholder="e.g., Marketing Campaign"
+                className="h-11"
                 autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newProjectName.trim() && !isCreatingProject) {
+                    handleCreateProject();
+                  }
+                }}
               />
             </div>
-            <div className="grid gap-2">
-              <Label>Color</Label>
-              <div className="flex flex-wrap gap-2">
+
+            {/* Color Selection */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Project Color</Label>
+              <div className="flex flex-wrap gap-3">
                 {PROJECT_COLORS.map((color) => (
                   <button
                     key={color}
                     className={cn(
-                      'size-8 rounded-full transition-transform',
-                      selectedColor === color && 'ring-2 ring-offset-2 ring-primary scale-110'
+                      'size-9 rounded-full transition-all duration-200 hover:scale-110 focus:outline-none',
+                      selectedColor === color 
+                        ? 'ring-2 ring-offset-2 ring-offset-background ring-primary scale-110 shadow-lg' 
+                        : 'hover:shadow-md'
                     )}
                     style={{ backgroundColor: color }}
                     onClick={() => setSelectedColor(color)}
+                    title={`Select ${color}`}
                   />
                 ))}
               </div>
             </div>
+
+            {/* Preview */}
+            {newProjectName.trim() && (
+              <div className="pt-2">
+                <Label className="text-sm font-medium text-muted-foreground mb-2 block">Preview</Label>
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
+                  <div 
+                    className="size-8 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: selectedColor }}
+                  >
+                    <Folder className="size-4 text-white" />
+                  </div>
+                  <span className="font-medium">{newProjectName.trim()}</span>
+                </div>
+              </div>
+            )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewProjectDialog(false)} disabled={isCreatingProject}>
+
+          {/* Footer */}
+          <div className="px-6 py-4 bg-muted/30 border-t flex justify-end gap-3">
+            <Button 
+              variant="ghost" 
+              onClick={() => setShowNewProjectDialog(false)} 
+              disabled={isCreatingProject}
+            >
               Cancel
             </Button>
-            <Button onClick={handleCreateProject} disabled={!newProjectName.trim() || isCreatingProject}>
+            <Button 
+              onClick={handleCreateProject} 
+              disabled={!newProjectName.trim() || isCreatingProject}
+              style={{ backgroundColor: newProjectName.trim() ? selectedColor : undefined }}
+              className={cn(
+                newProjectName.trim() && 'hover:opacity-90 text-white'
+              )}
+            >
               {isCreatingProject ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Creating...
                 </>
               ) : (
-                'Create Project'
+                <>
+                  <FolderPlus className="mr-2 h-4 w-4" />
+                  Create Project
+                </>
               )}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
@@ -614,6 +919,7 @@ interface ProjectItemProps {
   onNewChat: () => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
+  onRenameConversation?: (id: string, title: string) => void;
   onDeleteProject?: () => void;
   onRenameProject?: (name: string) => void;
   onUploadFile?: (file: File) => Promise<void>;
@@ -644,6 +950,7 @@ function ProjectItem({
   onNewChat,
   onSelectConversation,
   onDeleteConversation,
+  onRenameConversation,
   onDeleteProject,
   onRenameProject,
   onUploadFile,
@@ -674,6 +981,39 @@ function ProjectItem({
   const [isEmailSharing, setIsEmailSharing] = useState(false);
   const [emailShareError, setEmailShareError] = useState<string | null>(null);
   const [emailShareSuccess, setEmailShareSuccess] = useState(false);
+
+  // Computed: is the project shared with anyone?
+  const isProjectShared = existingShares.length > 0;
+
+  // Fetch share status on mount
+  useEffect(() => {
+    const fetchShareStatus = async () => {
+      const allShares: {id: string; userId: string; name: string; status: string}[] = [];
+      const seenUsers = new Set<string>();
+      
+      for (const conv of conversations) {
+        try {
+          const res = await fetch(`/api/conversation-shares?conversationId=${conv.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            for (const share of (data.shares || [])) {
+              if (!seenUsers.has(share.userId)) {
+                seenUsers.add(share.userId);
+                allShares.push(share);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching share status:', error);
+        }
+      }
+      setExistingShares(allShares);
+    };
+    
+    if (conversations.length > 0) {
+      fetchShareStatus();
+    }
+  }, [conversations]);
 
   // Load team members and existing shares when share dialog opens
   const loadShareData = async () => {
@@ -936,6 +1276,25 @@ function ProjectItem({
         >
           {project.name}
         </button>
+
+        {/* Shared indicator */}
+        {isProjectShared && (
+          <span title="Shared with team" className="shrink-0 mr-1">
+            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+          </span>
+        )}
+        
+        {/* Share button - visible on hover */}
+        <button
+          className="p-1 rounded hover:bg-accent opacity-0 group-hover/folder:opacity-60 hover:!opacity-100 shrink-0 transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpenShareDialog();
+          }}
+          title="Share Project"
+        >
+          <Share2 className="h-4 w-4" />
+        </button>
         
         {/* More menu - only visible on hover */}
         <DropdownMenu>
@@ -1016,6 +1375,7 @@ function ProjectItem({
               isOwner={!currentUserId || conv.user_id === currentUserId}
               onSelect={() => onSelectConversation(conv.id)}
               onDelete={() => onDeleteConversation(conv.id)}
+              onRename={onRenameConversation ? (title) => onRenameConversation(conv.id, title) : undefined}
               onArchive={
                 onArchiveConversation
                   ? () => onArchiveConversation(conv.id)
@@ -1363,6 +1723,7 @@ interface ConversationItemProps {
   isReadOnly?: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onRename?: (newTitle: string) => void;
   onArchive?: () => void;
   onToggleVisibility?: () => void;
 }
@@ -1374,11 +1735,14 @@ function ConversationItem({
   isReadOnly = false,
   onSelect,
   onDelete,
+  onRename,
   onArchive,
   onToggleVisibility,
 }: ConversationItemProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [newTitle, setNewTitle] = useState(conversation.title);
   const [publicCopied, setPublicCopied] = useState(false);
   const [publicShareUrl, setPublicShareUrl] = useState<string | null>(null);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
@@ -1620,13 +1984,25 @@ function ConversationItem({
           <DropdownMenuContent align="end" className="w-44">
             {isOwner && (
               <>
+                {onRename && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNewTitle(conversation.title);
+                      setShowRenameDialog(true);
+                    }}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Rename
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation();
                     handleOpenShareDialog();
                   }}
                 >
-                      <Share2 className="mr-2 h-4 w-4" />
+                  <Share2 className="mr-2 h-4 w-4" />
                   Share
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -1645,6 +2021,47 @@ function ConversationItem({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Rename Dialog */}
+      {onRename && (
+        <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Rename conversation</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <Input
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="Enter new title..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newTitle.trim()) {
+                    onRename(newTitle.trim());
+                    setShowRenameDialog(false);
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowRenameDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => {
+                  if (newTitle.trim()) {
+                    onRename(newTitle.trim());
+                    setShowRenameDialog(false);
+                  }
+                }}
+                disabled={!newTitle.trim()}
+              >
+                Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

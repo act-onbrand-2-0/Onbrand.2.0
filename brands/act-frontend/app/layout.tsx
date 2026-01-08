@@ -54,6 +54,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${crimsonText.variable} ${dmSans.variable} ${robotoMono.variable} antialiased`}
+        suppressHydrationWarning
         style={{
           // Add brand colors as CSS variables
           '--brand-primary': brandConfig.colors.primary,

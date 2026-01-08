@@ -73,6 +73,7 @@ interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   created_at: string;
+  metadata?: Record<string, unknown>;
 }
 
 export default function ChatPage() {
@@ -93,6 +94,31 @@ export default function ChatPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  
+  // MCP server state - using MCPServerInfo type from greeting for consistency
+  interface MCPServer {
+    id: string;
+    name: string;
+    description?: string | null;
+    enabled?: boolean;
+  }
+  const [mcpServers, setMcpServers] = useState<MCPServer[]>([]);
+  
+  // Persist MCP selection in localStorage
+  const [selectedMcpServerIds, setSelectedMcpServerIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('selectedMcpServerIds');
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+  
+  // Save MCP selection to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selectedMcpServerIds', JSON.stringify(selectedMcpServerIds));
+    }
+  }, [selectedMcpServerIds]);
   
   // Conversation state
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -279,6 +305,16 @@ export default function ChatPage() {
       
       console.log('=== STARTING STREAM READ ===');
       
+      // Track tool invocations for persistence
+      const toolInvocations: Array<{
+        toolCallId: string;
+        toolName: string;
+        args: unknown;
+        state: string;
+        result?: unknown;
+      }> = [];
+      let currentToolCall: { id: string; name: string } | null = null;
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
@@ -289,16 +325,36 @@ export default function ChatPage() {
         const chunk = decoder.decode(value, { stream: true });
         console.log('Received chunk:', chunk.length, 'bytes');
         
-        // Check for tool markers in the chunk
+        // Check for tool markers in the chunk and track them
         if (chunk.includes('[TOOL_CALL:')) {
           const match = chunk.match(/\[TOOL_CALL:([^\]]+)\]/);
           if (match) {
-            setActiveToolCall(match[1]);
-            console.log('Tool call detected:', match[1]);
+            const toolName = match[1];
+            const toolId = `tool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            currentToolCall = { id: toolId, name: toolName };
+            setActiveToolCall(toolName);
+            console.log('Tool call detected:', toolName);
+            
+            // Add to tracked invocations
+            toolInvocations.push({
+              toolCallId: toolId,
+              toolName: toolName,
+              args: {},
+              state: 'call',
+            });
           }
         }
         if (chunk.includes('[TOOL_RESULT:')) {
+          // Extract result if possible
+          const resultMatch = chunk.match(/\[TOOL_RESULT:([^\]]*)\]/);
+          if (currentToolCall && toolInvocations.length > 0) {
+            // Update the last tool invocation with result
+            const lastTool = toolInvocations[toolInvocations.length - 1];
+            lastTool.state = 'result';
+            lastTool.result = resultMatch ? resultMatch[1] : 'completed';
+          }
           setActiveToolCall(null);
+          currentToolCall = null;
           console.log('Tool result received');
         }
         
@@ -306,7 +362,7 @@ export default function ChatPage() {
         // Show content without tool markers in the UI
         const displayContent = fullContent
           .replace(/\n?\[TOOL_CALL:[^\]]+\]\n?/g, '')
-          .replace(/\n?\[TOOL_RESULT:[^\]]+\]\n?/g, '');
+          .replace(/\n?\[TOOL_RESULT:[^\]]*\]\n?/g, '');
         setStreamingContent(displayContent);
       }
       
@@ -320,26 +376,70 @@ export default function ChatPage() {
       
       // Add assistant message after streaming completes
       if (cleanContent) {
-        setAiMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: cleanContent }]);
+        // Clear streaming content FIRST to avoid visual jump, then add message
+        setStreamingContent('');
         setActiveToolCall(null);
         
-        // Save to DB
+        // Include tool invocations in the message if any were tracked
+        const messageWithTools = {
+          id: crypto.randomUUID(),
+          role: 'assistant' as const,
+          content: cleanContent,
+          toolInvocations: toolInvocations.length > 0 ? toolInvocations : undefined,
+        };
+        setAiMessages(prev => [...prev, messageWithTools]);
+        
+        // Save to DB in background (don't await to avoid UI delay)
         if (conversationRef.current) {
-          await saveMessageToDb({
-            conversation_id: conversationRef.current.id,
+          const convId = conversationRef.current.id;
+          saveMessageToDb({
+            conversation_id: convId,
             role: 'assistant',
             content: fullContent,
-          });
-          await supabase
-            .from('conversations')
-            .update({ last_message_at: new Date().toISOString() })
-            .eq('id', conversationRef.current.id);
+            tool_invocations: toolInvocations.length > 0 ? toolInvocations : undefined,
+          }).then(() => {
+            supabase
+              .from('conversations')
+              .update({ last_message_at: new Date().toISOString() })
+              .eq('id', convId);
+          }).catch(err => console.error('Failed to save message:', err));
         }
       }
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
+      if ((err as Error).name === 'AbortError') {
+        // User stopped generation - preserve partial content and save to DB
+        setStreamingContent(prev => {
+          if (prev && prev.trim()) {
+            const cleanPartial = prev
+              .replace(/\n?\[TOOL_CALL:[^\]]+\]\n?/g, '')
+              .replace(/\n?\[TOOL_RESULT:[^\]]+\]\n?/g, '');
+            const stoppedContent = cleanPartial + '\n\n*(Generation stopped)*';
+            
+            setAiMessages(messages => [...messages, { 
+              id: crypto.randomUUID(), 
+              role: 'assistant', 
+              content: stoppedContent
+            }]);
+            
+            // Save partial response to database
+            if (conversationRef.current) {
+              const convId = conversationRef.current.id;
+              saveMessageToDb({
+                conversation_id: convId,
+                role: 'assistant',
+                content: stoppedContent,
+              }).then(() => {
+                supabase
+                  .from('conversations')
+                  .update({ last_message_at: new Date().toISOString() })
+                  .eq('id', convId);
+              }).catch(err => console.error('Failed to save partial message:', err));
+            }
+          }
+          return '';
+        });
+      } else {
         console.error('Chat error:', err);
-        // Show error as assistant message
         const errorMessage = (err as Error).message || 'An error occurred while processing your request.';
         setAiMessages(prev => [...prev, { 
           id: crypto.randomUUID(), 
@@ -349,7 +449,7 @@ export default function ChatPage() {
       }
     } finally {
       setIsStreaming(false);
-      setStreamingContent('');
+      setActiveToolCall(null);
     }
   }, [aiMessages, selectedModel, supabase]);
 
@@ -383,6 +483,26 @@ export default function ChatPage() {
 
     fetchUserInfo();
   }, [router]);
+
+  // Fetch MCP servers directly when brandId is available
+  useEffect(() => {
+    if (!brandId) return;
+
+    async function fetchMcpServers() {
+      try {
+        const response = await fetch(`/api/mcp/servers?brandId=${brandId}`);
+        const data = await response.json();
+        
+        if (response.ok && data.servers) {
+          setMcpServers(data.servers);
+        }
+      } catch (error) {
+        console.error('Failed to fetch MCP servers:', error);
+      }
+    }
+
+    fetchMcpServers();
+  }, [brandId]);
 
   // Fetch projects when brand is set
   useEffect(() => {
@@ -511,14 +631,27 @@ export default function ChatPage() {
             }
           });
           
-          // Map DB messages and restore any attachments
-          return data.map((m: Message) => ({
-            id: m.id,
-            role: m.role as 'user' | 'assistant',
-            content: m.content,
-            // Try to restore attachments by matching content
-            attachments: attachmentMap.get(m.content),
-          }));
+          // Map DB messages and restore any attachments and tool invocations
+          return data.map((m: Message) => {
+            // Restore tool invocations from metadata if present
+            const metadata = m.metadata as { tool_invocations?: Array<{
+              toolCallId: string;
+              toolName: string;
+              args: unknown;
+              state: string;
+              result?: unknown;
+            }> } | null;
+            
+            return {
+              id: m.id,
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              // Try to restore attachments by matching content
+              attachments: attachmentMap.get(m.content),
+              // Restore tool invocations from metadata
+              toolInvocations: metadata?.tool_invocations,
+            };
+          });
         });
       }
     }
@@ -526,20 +659,36 @@ export default function ChatPage() {
     fetchMessages();
   }, [currentConversation, setAiMessages]);
 
-  // Save message to database
+  // Save message to database with optional tool invocations
   const saveMessageToDb = async (message: {
     conversation_id: string;
     role: string;
     content: string;
+    tool_invocations?: Array<{
+      toolCallId: string;
+      toolName: string;
+      args: unknown;
+      state: string;
+      result?: unknown;
+    }>;
   }) => {
     const model = currentConversation?.model || 'claude-3-sonnet';
+    const metadata: Record<string, unknown> = {};
+    
+    // Store tool invocations in metadata if present
+    if (message.tool_invocations && message.tool_invocations.length > 0) {
+      metadata.tool_invocations = message.tool_invocations;
+    }
+    
     const { data, error } = await supabase
       .from('messages')
       .insert({
-        ...message,
+        conversation_id: message.conversation_id,
+        role: message.role,
+        content: message.content,
         tokens_used: 0,
         model,
-        metadata: {},
+        metadata,
       })
       .select()
       .single();
@@ -1060,6 +1209,10 @@ export default function ChatPage() {
       currentUserId={userId}
       userName={userName}
       userEmail={userEmail}
+      brandId={brandId}
+      mcpServers={mcpServers}
+      selectedMcpServerIds={selectedMcpServerIds}
+      onMcpServerSelectionChange={setSelectedMcpServerIds}
     />
   );
 }

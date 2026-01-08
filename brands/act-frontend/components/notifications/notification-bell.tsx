@@ -104,7 +104,11 @@ function NotificationItem({
   );
 }
 
-export function NotificationBell() {
+interface NotificationBellProps {
+  align?: 'start' | 'end';
+}
+
+export function NotificationBell({ align = 'end' }: NotificationBellProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const {
@@ -191,7 +195,7 @@ export function NotificationBell() {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 p-0">
+      <DropdownMenuContent align={align} className="w-80 p-0">
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <h3 className="font-semibold text-sm">Notifications</h3>
           {unreadCount > 0 && (

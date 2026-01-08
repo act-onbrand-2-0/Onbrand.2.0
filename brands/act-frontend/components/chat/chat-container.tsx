@@ -7,7 +7,7 @@ import { ProjectDetailView } from './project-detail-view';
 import { MessageList } from './message-list';
 import { ChatInput, type ModelId, type Attachment, type StylePreset } from './chat-input';
 import { type MessageAttachment, type ToolInvocation } from './chat-message';
-import { SuggestedActions } from './greeting';
+import { SuggestedActions, type MCPServerInfo } from './greeting';
 import { cn } from '@/lib/utils';
 
 interface Message {
@@ -73,6 +73,7 @@ interface ChatContainerProps {
   onNewChat: (projectId?: string, initialMessage?: string) => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
+  onRenameConversation?: (id: string, title: string) => void;
   onArchiveConversation?: (id: string) => void;
   onToggleVisibility?: (id: string, visibility: 'private' | 'shared') => void;
   onToggleProjectVisibility?: (id: string, visibility: 'private' | 'shared') => void;
@@ -100,6 +101,8 @@ interface ChatContainerProps {
 	brandId?: string;
 	selectedMcpServerIds?: string[];
 	onMcpServerSelectionChange?: (serverIds: string[]) => void;
+	mcpServers?: MCPServerInfo[];
+	onMcpServersLoaded?: (servers: MCPServerInfo[]) => void;
 
   // User info
   brandName?: string;
@@ -130,6 +133,7 @@ export function ChatContainer({
   onNewChat,
   onSelectConversation,
   onDeleteConversation,
+  onRenameConversation,
   onArchiveConversation,
   onToggleVisibility,
   onToggleProjectVisibility,
@@ -156,6 +160,8 @@ export function ChatContainer({
 	brandId,
 	selectedMcpServerIds,
 	onMcpServerSelectionChange,
+	mcpServers,
+	onMcpServersLoaded,
 	isReadOnly = false,
 }: ChatContainerProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -246,6 +252,13 @@ export function ChatContainer({
                   setInput(text);
                 }} 
                 jobFunction={jobFunction}
+                selectedMcpServers={
+                  mcpServers && selectedMcpServerIds && selectedMcpServerIds.length > 0
+                    ? mcpServers.filter(s => selectedMcpServerIds.includes(s.id))
+                    : undefined
+                }
+                brandId={brandId}
+                selectedMcpServerIds={selectedMcpServerIds}
               />
             )}
 
@@ -280,6 +293,7 @@ export function ChatContainer({
                   brandId={brandId}
                   selectedMcpServerIds={selectedMcpServerIds}
                   onMcpServerSelectionChange={onMcpServerSelectionChange}
+                  onMcpServersLoaded={onMcpServersLoaded}
                 />
               )}
             </div>
@@ -308,6 +322,7 @@ export function ChatContainer({
             onSelectProject={onSelectProject}
             onSelectConversation={onSelectConversation}
             onDeleteConversation={onDeleteConversation}
+            onRenameConversation={onRenameConversation}
             onDeleteProject={onDeleteProject || (() => {})}
             onRenameProject={onRenameProject || (() => {})}
             onUploadFile={onUploadFile}

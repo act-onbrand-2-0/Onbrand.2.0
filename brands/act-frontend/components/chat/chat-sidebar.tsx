@@ -47,6 +47,7 @@ import {
   Globe,
   Loader2,
   Search,
+  Mail,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -366,6 +367,9 @@ function ConversationItem({
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [isSharingWithMembers, setIsSharingWithMembers] = useState(false);
   const [shareSuccess, setShareSuccess] = useState<string | null>(null);
+  const [emailInput, setEmailInput] = useState('');
+  const [isSharingByEmail, setIsSharingByEmail] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
   
   // Fetch shares on mount to show icon
   useEffect(() => {
@@ -458,6 +462,54 @@ function ConversationItem({
       }
       return next;
     });
+  };
+
+  // Share by email address
+  const handleShareByEmail = async () => {
+    if (!emailInput.trim()) return;
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailInput.trim())) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+    
+    setIsSharingByEmail(true);
+    setEmailError(null);
+    setShareSuccess(null);
+    
+    try {
+      const res = await fetch('/api/conversation-shares', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          email: emailInput.trim(),
+          permission: 'write',
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        setShareSuccess(`Invitation sent to ${emailInput}!`);
+        setEmailInput('');
+        // Refresh shares list
+        const sharesRes = await fetch(`/api/conversation-shares?conversationId=${conversation.id}`);
+        if (sharesRes.ok) {
+          const sharesData = await sharesRes.json();
+          setExistingShares(sharesData.shares || []);
+        }
+      } else {
+        setEmailError(data.error || data.details || 'Failed to share');
+      }
+    } catch (error) {
+      console.error('Error sharing by email:', error);
+      setEmailError('Failed to send invitation');
+    } finally {
+      setIsSharingByEmail(false);
+    }
   };
   
   // Team share URL - only accessible by users in the same brand
@@ -650,58 +702,94 @@ function ConversationItem({
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* Share with Team Members */}
+            {/* Share by Email */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Share with teammates
-                </Label>
-                {selectedMembers.size > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {selectedMembers.size} selected
-                  </span>
-                )}
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Invite by email
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="colleague@company.com"
+                  value={emailInput}
+                  onChange={(e) => {
+                    setEmailInput(e.target.value);
+                    setEmailError(null);
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleShareByEmail()}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleShareByEmail}
+                  disabled={isSharingByEmail || !emailInput.trim()}
+                  size="sm"
+                >
+                  {isSharingByEmail ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Send'
+                  )}
+                </Button>
               </div>
-              
-              {isLoadingMembers ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ) : teamMembers.length > 0 ? (
-                <div className="space-y-2 max-h-40 overflow-y-auto rounded-md border p-2">
-                  {teamMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      onClick={() => toggleMemberSelection(member.id)}
-                      className={cn(
-                        "flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors",
-                        selectedMembers.has(member.id)
-                          ? "bg-primary/10 border border-primary/30"
-                          : "hover:bg-muted"
-                      )}
-                    >
-                      <div className="flex-shrink-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
-                        {member.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{member.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{member.email}</p>
-                      </div>
-                      {selectedMembers.has(member.id) && (
-                        <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground py-2">
-                  {existingShares.length > 0 
-                    ? "Already shared with all team members" 
-                    : "No other team members found"}
+              {emailError && (
+                <p className="text-xs text-red-500">{emailError}</p>
+              )}
+              {shareSuccess && (
+                <p className="text-xs text-green-600 flex items-center gap-1">
+                  <Check className="h-3 w-3" />
+                  {shareSuccess}
                 </p>
               )}
+            </div>
+
+            {/* Team Members List (if any) */}
+            {(isLoadingMembers || teamMembers.length > 0) && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Your team
+                  </Label>
+                  {selectedMembers.size > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {selectedMembers.size} selected
+                    </span>
+                  )}
+                </div>
+                
+                {isLoadingMembers ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-40 overflow-y-auto rounded-md border p-2">
+                    {teamMembers.map((member) => (
+                      <div
+                        key={member.id}
+                        onClick={() => toggleMemberSelection(member.id)}
+                        className={cn(
+                          "flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors",
+                          selectedMembers.has(member.id)
+                            ? "bg-primary/10 border border-primary/30"
+                            : "hover:bg-muted"
+                        )}
+                      >
+                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
+                          {member.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{member.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                        </div>
+                        {selectedMembers.has(member.id) && (
+                          <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               
               {selectedMembers.size > 0 && (
                 <Button
@@ -750,7 +838,8 @@ function ConversationItem({
                   </div>
                 </div>
               )}
-            </div>
+              </div>
+            )}
             
             <Separator />
 

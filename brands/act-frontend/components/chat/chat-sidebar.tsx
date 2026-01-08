@@ -395,14 +395,23 @@ function ConversationItem({
       setIsLoadingMembers(true);
       try {
         const res = await fetch('/api/brand-members');
+        const data = await res.json();
+        console.log('=== SHARE DIALOG DEBUG ===');
+        console.log('API Response status:', res.status);
+        console.log('API Response data:', data);
+        console.log('Existing shares:', existingShares);
+        
         if (res.ok) {
-          const data = await res.json();
           // Filter out members who already have shares
           const sharedUserIds = new Set(existingShares.map(s => s.userId));
+          console.log('Shared user IDs:', [...sharedUserIds]);
           const availableMembers = (data.members || []).filter(
             (m: any) => !sharedUserIds.has(m.id)
           );
+          console.log('Available members after filter:', availableMembers);
           setTeamMembers(availableMembers);
+        } else {
+          console.error('API Error:', data.error);
         }
       } catch (error) {
         console.error('Error fetching team members:', error);

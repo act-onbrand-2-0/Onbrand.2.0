@@ -47,6 +47,11 @@ export async function GET(request: NextRequest) {
 
     console.log('ALL members in brand:', allBrandMembers);
     console.log('ALL members count:', allBrandMembers?.length || 0);
+    
+    if (allMembersError) {
+      console.error('Error fetching brand members:', allMembersError);
+      return NextResponse.json({ error: 'Failed to fetch team members', details: allMembersError.message }, { status: 500 });
+    }
 
     // Filter out current user
     const brandMembers = (allBrandMembers || []).filter(

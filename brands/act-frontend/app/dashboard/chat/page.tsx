@@ -935,7 +935,7 @@ export default function ChatPage() {
           setCurrentConversation(newConversation);
           setConversations((prev) => [newConversation, ...prev]);
           
-          // Save user message to database
+          // Save user message to database (include user_id for collaborative chat support)
           await supabase.from('messages').insert({
             conversation_id: newConversation.id,
             role: 'user',
@@ -943,6 +943,7 @@ export default function ChatPage() {
             tokens_used: 0,
             model: selectedModel,
             metadata: {},
+            user_id: userId, // Track who sent this message for collaborative chats
           });
           
           // Clear input and send to AI

@@ -46,7 +46,18 @@ export async function GET(request: NextRequest) {
       .single();
 
     const hasAccess = isOwner || !!share;
-    const isCollaborative = share?.permission === 'write';
+    
+    // Check if this conversation has ANY write shares (for collaborative mode)
+    // This makes it collaborative for both owner and shared users
+    const { data: writeShares } = await serviceSupabase
+      .from('conversation_shares')
+      .select('id')
+      .eq('conversation_id', conversationId)
+      .eq('permission', 'write')
+      .eq('status', 'accepted')
+      .limit(1);
+    
+    const isCollaborative = (writeShares && writeShares.length > 0) || share?.permission === 'write';
 
     if (!hasAccess) {
       return NextResponse.json({ error: 'No access to this conversation' }, { status: 403 });

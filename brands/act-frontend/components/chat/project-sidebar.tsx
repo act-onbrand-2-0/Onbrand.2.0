@@ -1798,25 +1798,14 @@ function ConversationItem({
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [newTitle, setNewTitle] = useState(conversation.title);
-  const [publicCopied, setPublicCopied] = useState(false);
-  const [publicShareUrl, setPublicShareUrl] = useState<string | null>(null);
-  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   
-  // Team member sharing state
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  // Invite link state (simplified sharing)
+  const [inviteLink, setInviteLink] = useState<{ url: string; token: string } | null>(null);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
+  
+  // Existing shares state
   const [existingShares, setExistingShares] = useState<ShareRecord[]>([]);
-  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
-  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
-  const [shareSuccess, setShareSuccess] = useState(false);
-  
-  // Permission selection for collaborative chats
-  const [sharePermission, setSharePermission] = useState<'read' | 'write'>('read');
-  
-  // Email sharing state
-  const [shareEmail, setShareEmail] = useState('');
-  const [emailShareError, setEmailShareError] = useState<string | null>(null);
-  const [isEmailSharing, setIsEmailSharing] = useState(false);
   
   const isShared = existingShares.length > 0;
 
@@ -1836,129 +1825,38 @@ function ConversationItem({
     fetchShareStatus();
   }, [conversation.id]);
 
-  // Fetch team members and existing shares when dialog opens
-  const loadShareData = async () => {
-    setIsLoadingMembers(true);
+  // Generate collaborative invite link
+  const handleGenerateInviteLink = async () => {
+    setIsGeneratingInvite(true);
     try {
-      // Fetch team members
-      const membersRes = await fetch('/api/brand-members');
-      if (membersRes.ok) {
-        const data = await membersRes.json();
-        setTeamMembers(data.members || []);
-      }
-
-      // Fetch existing shares for this conversation
-      const sharesRes = await fetch(`/api/conversation-shares?conversationId=${conversation.id}`);
-      if (sharesRes.ok) {
-        const data = await sharesRes.json();
-        setExistingShares(data.shares || []);
-        // Pre-select users who already have access
-        const sharedUserIds = new Set<string>((data.shares || []).map((s: ShareRecord) => s.userId));
-        setSelectedMembers(sharedUserIds);
-      }
-    } catch (error) {
-      console.error('Error loading share data:', error);
-    } finally {
-      setIsLoadingMembers(false);
-    }
-  };
-
-  const handleOpenShareDialog = () => {
-    setShowShareDialog(true);
-    setShareSuccess(false);
-    loadShareData();
-  };
-
-  const handleToggleMember = (memberId: string) => {
-    setSelectedMembers(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(memberId)) {
-        newSet.delete(memberId);
-      } else {
-        newSet.add(memberId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleShareWithSelected = async () => {
-    if (selectedMembers.size === 0) return;
-    
-    setIsSharing(true);
-    try {
-      // Get newly selected members (not already shared)
-      const existingIds = new Set(existingShares.map(s => s.userId));
-      const newMembers = Array.from(selectedMembers).filter(id => !existingIds.has(id));
-      
-      if (newMembers.length > 0) {
-        const response = await fetch('/api/conversation-shares', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            conversationId: conversation.id,
-            userIds: newMembers,
-            permission: sharePermission, // 'read' for view-only, 'write' for collaborative
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to share');
-        }
-      }
-      
-      setShareSuccess(true);
-      // Reload shares to update the UI
-      await loadShareData();
-      
-      setTimeout(() => setShareSuccess(false), 3000);
-    } catch (error) {
-      console.error('Error sharing conversation:', error);
-      alert('Failed to share conversation. Please try again.');
-    } finally {
-      setIsSharing(false);
-    }
-  };
-
-  const handleShareByEmail = async () => {
-    if (!shareEmail.trim()) return;
-    
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(shareEmail.trim())) {
-      setEmailShareError('Please enter a valid email address');
-      return;
-    }
-    
-    setIsEmailSharing(true);
-    setEmailShareError(null);
-    
-    try {
-      const response = await fetch('/api/conversation-shares', {
+      const response = await fetch('/api/conversation-invite-links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId: conversation.id,
-          email: shareEmail.trim(),
-          permission: sharePermission, // 'read' for view-only, 'write' for collaborative
+          permission: 'write', // Collaborative access
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        setEmailShareError(data.details || data.error || 'Failed to share');
-        return;
+        throw new Error('Failed to generate invite link');
       }
-      
-      setShareEmail('');
-      setShareSuccess(true);
-      await loadShareData();
-      setTimeout(() => setShareSuccess(false), 3000);
+
+      const data = await response.json();
+      setInviteLink({ url: data.link.url, token: data.link.token });
     } catch (error) {
-      console.error('Error sharing by email:', error);
-      setEmailShareError('Failed to share. Please try again.');
+      console.error('Error generating invite link:', error);
+      alert('Failed to generate invite link. Please try again.');
     } finally {
-      setIsEmailSharing(false);
+      setIsGeneratingInvite(false);
+    }
+  };
+
+  const handleCopyInviteUrl = async () => {
+    if (inviteLink) {
+      await navigator.clipboard.writeText(inviteLink.url);
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 2000);
     }
   };
 
@@ -1969,45 +1867,20 @@ function ConversationItem({
       });
 
       if (response.ok) {
-        await loadShareData();
+        // Refresh shares
+        const sharesRes = await fetch(`/api/conversation-shares?conversationId=${conversation.id}`);
+        if (sharesRes.ok) {
+          const data = await sharesRes.json();
+          setExistingShares(data.shares || []);
+        }
       }
     } catch (error) {
       console.error('Error removing share:', error);
     }
   };
 
-  const handleCopyPublicUrl = async () => {
-    if (publicShareUrl) {
-      await navigator.clipboard.writeText(publicShareUrl);
-      setPublicCopied(true);
-      setTimeout(() => setPublicCopied(false), 2000);
-    }
-  };
-
-  const handleGeneratePublicLink = async () => {
-    setIsGeneratingLink(true);
-    try {
-      const response = await fetch('/api/share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          resourceType: 'conversation',
-          resourceId: conversation.id,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate link');
-      }
-
-      const data = await response.json();
-      setPublicShareUrl(data.shareUrl);
-    } catch (error) {
-      console.error('Error generating public link:', error);
-      alert('Failed to generate public link. Please try again.');
-    } finally {
-      setIsGeneratingLink(false);
-    }
+  const handleOpenShareDialog = () => {
+    setShowShareDialog(true);
   };
 
   return (
@@ -2148,7 +2021,7 @@ function ConversationItem({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Enhanced Share Dialog with Team Member Selection */}
+      {/* Simplified Share Dialog - Collaborative Invite Link Only */}
       <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2157,280 +2030,95 @@ function ConversationItem({
               Share conversation
             </DialogTitle>
             <DialogDescription>
-              Select team members to share this conversation with
+              Invite others to collaborate on this chat
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
-            {/* Permission Selection */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Access Level</Label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSharePermission('read')}
-                  className={cn(
-                    "flex-1 flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-colors",
-                    sharePermission === 'read' 
-                      ? "border-primary bg-primary/5" 
-                      : "border-border hover:border-muted-foreground/50"
-                  )}
-                >
-                  <Eye className="h-5 w-5" />
-                  <span className="text-sm font-medium">View Only</span>
-                  <span className="text-xs text-muted-foreground">Can read messages</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSharePermission('write')}
-                  className={cn(
-                    "flex-1 flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-colors",
-                    sharePermission === 'write' 
-                      ? "border-primary bg-primary/5" 
-                      : "border-border hover:border-muted-foreground/50"
-                  )}
-                >
-                  <Users className="h-5 w-5" />
-                  <span className="text-sm font-medium">Collaborate</span>
-                  <span className="text-xs text-muted-foreground">Can send messages</span>
-                </button>
-              </div>
-            </div>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Anyone with this link can join and collaborate on this chat in real-time
+            </p>
 
-            <Separator />
-
-            {/* Team Member Selection */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-medium">Share with Team Members</Label>
-              </div>
-
-              {isLoadingMembers ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : teamMembers.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">
-                  No other team members found in your organization
-                </p>
-              ) : (
-                <div className="max-h-48 overflow-y-auto space-y-2 border rounded-lg p-2">
-                  {teamMembers.map((member) => {
-                    const existingShare = existingShares.find(s => s.userId === member.id);
-                    const isSelected = selectedMembers.has(member.id);
-                    
-                    return (
-                      <div
-                        key={member.id}
-                        className={cn(
-                          "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors",
-                          isSelected ? "bg-primary/10" : "hover:bg-accent"
-                        )}
-                        onClick={() => handleToggleMember(member.id)}
-                      >
-                        <div className={cn(
-                          "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
-                          isSelected ? "bg-primary border-primary" : "border-muted-foreground/30"
-                        )}>
-                          {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{member.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{member.email}</p>
-                        </div>
-                        {existingShare && (
-                          <span className={cn(
-                            "text-xs px-2 py-0.5 rounded-full",
-                            existingShare.status === 'accepted' ? "bg-green-100 text-green-700" :
-                            existingShare.status === 'pending' ? "bg-yellow-100 text-yellow-700" :
-                            "bg-red-100 text-red-700"
-                          )}>
-                            {existingShare.status}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Share Button */}
-              {teamMembers.length > 0 && (
-                <Button
-                  onClick={handleShareWithSelected}
-                  disabled={selectedMembers.size === 0 || isSharing}
-                  className="w-full"
-                >
-                  {isSharing ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Sharing...
-                    </>
-                  ) : shareSuccess ? (
-                    <>
-                      <Check className="mr-2 h-4 w-4" />
-                      Invitation Sent!
-                    </>
-                  ) : (
-                    <>
-                      <Share2 className="mr-2 h-4 w-4" />
-                      Send Invitation ({selectedMembers.size} selected)
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
-
-            <Separator />
-
-            {/* Share by Email - Prominent Section */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-medium">Share by Email</Label>
-              </div>
-              
-              <p className="text-sm text-muted-foreground">
-                Enter an email to share with someone not in your team. They must have an account.
-              </p>
-
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  placeholder="Enter email address..."
-                  value={shareEmail}
-                  onChange={(e) => {
-                    setShareEmail(e.target.value);
-                    setEmailShareError(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleShareByEmail();
-                    }
-                  }}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={handleShareByEmail}
-                  disabled={!shareEmail.trim() || isEmailSharing}
-                >
-                  {isEmailSharing ? (
+            {!inviteLink ? (
+              <Button
+                onClick={handleGenerateInviteLink}
+                disabled={isGeneratingInvite}
+                className="w-full"
+              >
+                {isGeneratingInvite ? (
+                  <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Mail className="mr-2 h-4 w-4" />
-                  )}
-                  {isEmailSharing ? 'Sending...' : 'Send'}
-                </Button>
+                    Creating link...
+                  </>
+                ) : (
+                  <>
+                    <LinkIcon className="mr-2 h-4 w-4" />
+                    Create Invite Link
+                  </>
+                )}
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Input 
+                    readOnly 
+                    value={inviteLink.url}
+                    className="flex-1 text-sm bg-muted"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleCopyInviteUrl}
+                    className="shrink-0"
+                  >
+                    {inviteCopied ? (
+                      <>
+                        <Check className="mr-1 h-4 w-4" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="mr-1 h-4 w-4" />
+                        Copy
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Check className="h-3 w-3 text-green-500" />
+                  Link ready • Share it with your teammates
+                </p>
               </div>
-              {emailShareError && (
-                <p className="text-xs text-destructive mt-1">{emailShareError}</p>
-              )}
-            </div>
+            )}
 
-            {/* Currently Shared With - moved to its own section */}
-            <div className="space-y-3">
-
-              {/* Currently Shared With */}
-              {existingShares.length > 0 && (
-                <div className="pt-2">
-                  <p className="text-xs text-muted-foreground mb-2">Currently shared with:</p>
-                  <div className="space-y-1">
-                    {existingShares.map((share) => (
-                      <div key={share.id} className="flex items-center justify-between text-xs bg-muted/50 rounded px-2 py-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{share.name}</span>
-                          <span className={cn(
-                            "px-1.5 py-0.5 rounded text-[10px]",
-                            share.permission === 'write' 
-                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" 
-                              : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                          )}>
-                            {share.permission === 'write' ? 'Collaborate' : 'View Only'}
-                          </span>
-                          <span className={cn(
-                            "px-1.5 py-0.5 rounded text-[10px]",
-                            share.status === 'accepted' ? "bg-green-100 text-green-700" :
-                            share.status === 'pending' ? "bg-yellow-100 text-yellow-700" :
-                            "bg-red-100 text-red-700"
-                          )}>
-                            {share.status}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveShare(share.id)}
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+            {/* Currently Shared With */}
+            {existingShares.length > 0 && (
+              <div className="pt-2 border-t">
+                <p className="text-xs text-muted-foreground mb-2">Currently shared with:</p>
+                <div className="space-y-1">
+                  {existingShares.map((share) => (
+                    <div key={share.id} className="flex items-center justify-between text-xs bg-muted/50 rounded px-2 py-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{share.name}</span>
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded text-[10px]",
+                          share.status === 'accepted' ? "bg-green-100 text-green-700" :
+                          share.status === 'pending' ? "bg-yellow-100 text-yellow-700" :
+                          "bg-red-100 text-red-700"
+                        )}>
+                          {share.status}
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                      <button
+                        onClick={() => handleRemoveShare(share.id)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-
-            <Separator />
-
-            {/* Public Link Sharing (Anyone with Link) */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-medium">Public Link (Anyone)</Label>
               </div>
-              
-              <p className="text-sm text-muted-foreground">
-                Anyone with this link can view (read-only)
-              </p>
-
-              {!publicShareUrl ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGeneratePublicLink}
-                  disabled={isGeneratingLink}
-                  className="w-full"
-                >
-                  {isGeneratingLink ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <LinkIcon className="mr-2 h-4 w-4" />
-                      Generate Public Link
-                    </>
-                  )}
-                </Button>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Input 
-                      readOnly 
-                      value={publicShareUrl}
-                      className="flex-1 text-xs"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleCopyPublicUrl}
-                      className="shrink-0"
-                    >
-                      {publicCopied ? (
-                        <Check className="h-4 w-4" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    ✓ Public link created • No expiration • Unlimited views
-                  </p>
-                </div>
-              )}
-            </div>
+            )}
           </div>
 
           <DialogFooter>

@@ -157,6 +157,7 @@ export default function ChatPage() {
   const [isCollaborativeChat, setIsCollaborativeChat] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [typingUsers, setTypingUsers] = useState<{userId: string; userName: string}[]>([]);
+  const chatChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
   const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
   const [isDeepResearchActive, setIsDeepResearchActive] = useState(false);
@@ -956,6 +957,9 @@ export default function ChatPage() {
       .subscribe((status: string) => {
         console.log('Chat room subscription status:', status);
         if (status === 'SUBSCRIBED') {
+          // Store channel reference for broadcasting messages
+          chatChannelRef.current = channel;
+          
           // Check and update collaborative status once subscribed
           if (isOwner && !isCollaborativeChat) {
             fetch(`/api/collaborative-messages?conversationId=${currentConversation.id}`)
@@ -973,6 +977,7 @@ export default function ChatPage() {
 
     return () => {
       console.log('Cleaning up chat room subscription');
+      chatChannelRef.current = null;
       supabase.removeChannel(channel);
     };
   }, [currentConversation?.id, currentConversation?.user_id, userId, supabase, setAiMessages]);
@@ -982,15 +987,14 @@ export default function ChatPage() {
   const lastTypingBroadcast = useRef<number>(0);
   
   const broadcastTyping = useCallback((isTyping: boolean) => {
-    if (!currentConversation || !userId) return;
+    if (!currentConversation || !userId || !chatChannelRef.current) return;
     
     const now = Date.now();
     // Throttle typing broadcasts to once per second
     if (isTyping && now - lastTypingBroadcast.current < 1000) return;
     lastTypingBroadcast.current = now;
     
-    const channel = supabase.channel(`chat-room-${currentConversation.id}`);
-    channel.send({
+    chatChannelRef.current.send({
       type: 'broadcast',
       event: 'typing',
       payload: {
@@ -999,7 +1003,7 @@ export default function ChatPage() {
         isTyping
       }
     }).catch(err => console.error('Failed to broadcast typing:', err));
-  }, [currentConversation?.id, userId, userName, supabase]);
+  }, [currentConversation?.id, userId, userName]);
 
   // Handle input change to broadcast typing
   const handleInputChange = useCallback((value: string) => {
@@ -1146,11 +1150,9 @@ export default function ChatPage() {
       setDbMessages((prev) => [...prev, data]);
       
       // Broadcast the message for immediate real-time delivery to other users
-      // This supplements postgres_changes which can have slight delays
-      // IMPORTANT: Channel name must match the subscription channel: chat-room-${id}
-      if (message.conversation_id) {
-        const channel = supabase.channel(`chat-room-${message.conversation_id}`);
-        channel.send({
+      // Use the existing subscribed channel from chatChannelRef for reliable delivery
+      if (chatChannelRef.current) {
+        chatChannelRef.current.send({
           type: 'broadcast',
           event: 'new_message',
           payload: {
@@ -1159,10 +1161,12 @@ export default function ChatPage() {
             sender_email: message.role === 'user' ? userEmail : null,
           }
         }).then(() => {
-          console.log('Message broadcasted to channel');
+          console.log('Message broadcasted via subscribed channel');
         }).catch((err) => {
           console.error('Failed to broadcast message:', err);
         });
+      } else {
+        console.log('No chat channel available for broadcast - message saved to DB only');
       }
     }
 

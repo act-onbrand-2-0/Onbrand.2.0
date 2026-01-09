@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { dedupedFetch } from '@/lib/request-dedup';
 
 export interface ReactionGroup {
   count: number;
@@ -15,22 +16,36 @@ export function useMessageReactions(conversationId: string | null) {
   const [reactions, setReactions] = useState<ReactionsMap>({});
   const [isLoading, setIsLoading] = useState(false);
   const supabase = createClient();
+  const fetchedIdsRef = useRef<Set<string>>(new Set());
 
-  // Fetch reactions for all messages in the conversation
+  // Fetch reactions for all messages in the conversation - with batching and deduplication
   const fetchReactions = useCallback(async (messageIds: string[]) => {
-    if (!messageIds.length) return;
+    // Filter out already fetched IDs to prevent duplicate requests
+    const newIds = messageIds.filter(id => !fetchedIdsRef.current.has(id));
+    if (!newIds.length) return;
+    
+    // Mark as fetched immediately to prevent duplicates
+    newIds.forEach(id => fetchedIdsRef.current.add(id));
     
     setIsLoading(true);
     try {
       const newReactions: ReactionsMap = {};
       
-      // Fetch reactions for each message
-      for (const messageId of messageIds) {
-        const response = await fetch(`/api/message-reactions?messageId=${messageId}`);
-        if (response.ok) {
-          const data = await response.json();
-          newReactions[messageId] = data.reactions || {};
-        }
+      // Batch fetch - 5 at a time
+      const batchSize = 5;
+      for (let i = 0; i < newIds.length; i += batchSize) {
+        const batch = newIds.slice(i, i + batchSize);
+        await Promise.all(batch.map(async (messageId) => {
+          try {
+            const response = await dedupedFetch(`/api/message-reactions?messageId=${messageId}`);
+            if (response.ok) {
+              const data = await response.json();
+              newReactions[messageId] = data.reactions || {};
+            }
+          } catch {
+            // Silently ignore individual failures
+          }
+        }));
       }
       
       setReactions(prev => ({ ...prev, ...newReactions }));
@@ -113,10 +128,14 @@ export function useMessageReactions(conversationId: string | null) {
           // Refetch reactions for the affected message
           const messageId = (payload.new as any)?.message_id || (payload.old as any)?.message_id;
           if (messageId) {
-            const response = await fetch(`/api/message-reactions?messageId=${messageId}`);
-            if (response.ok) {
-              const data = await response.json();
-              setReactions(prev => ({ ...prev, [messageId]: data.reactions || {} }));
+            try {
+              const response = await dedupedFetch(`/api/message-reactions?messageId=${messageId}`);
+              if (response.ok) {
+                const data = await response.json();
+                setReactions(prev => ({ ...prev, [messageId]: data.reactions || {} }));
+              }
+            } catch {
+              // Silently ignore
             }
           }
         }

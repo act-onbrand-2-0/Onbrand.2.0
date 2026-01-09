@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS agent_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  brand_id UUID NOT NULL,
+  brand_id TEXT NOT NULL, -- Brand slug like 'act' (not UUID)
   agent_type TEXT NOT NULL, -- 'corvee' or 'budget'
   status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'failed'
   input_data JSONB NOT NULL, -- Store the input parameters

@@ -503,7 +503,23 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
         // If MCP tools are available, instruct the AI to use them proactively
         if (hasMCPTools) {
           const mcpToolNames = Object.keys(mcpTools).slice(0, 10).join(', ');
-          streamOptions.system = `${streamOptions.system || finalSystemPrompt}\n\nIMPORTANT: You have access to external tools that can help you complete tasks. Available tools include: ${mcpToolNames}${Object.keys(mcpTools).length > 10 ? ', and more' : ''}. When the user's request can be fulfilled or enhanced by using these tools, USE THEM AUTOMATICALLY without waiting to be asked. For example, if asked to fetch data, look up information, or perform actions that match your available tools, use them immediately. Be proactive - don't just describe what you could do, actually do it.`;
+          streamOptions.system = `${streamOptions.system || finalSystemPrompt}\n\n## CRITICAL INSTRUCTION - TOOL USAGE REQUIRED
+
+You have access to external data tools: ${mcpToolNames}${Object.keys(mcpTools).length > 10 ? ', and more' : ''}.
+
+**YOU MUST USE THESE TOOLS FIRST** before responding to ANY question that involves:
+- Looking up information (employees, data, records, lists)
+- Finding, searching, or querying anything
+- Getting details about people, projects, tasks, or any entities
+- Any question that could potentially be answered by data in a connected system
+
+**DO NOT** say "I don't have access to..." or "I can't retrieve..." - you DO have access via these tools.
+**DO NOT** suggest the user ask elsewhere - USE THE TOOLS to find the answer.
+**DO NOT** respond with general advice when specific data could be retrieved.
+
+**ALWAYS** call the relevant tool FIRST, then respond based on what you find.
+
+If the tool returns no results, THEN you can say the information wasn't found in the connected systems.`;
         }
       }
 

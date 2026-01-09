@@ -48,6 +48,7 @@ import {
   Loader2,
   Search,
   Mail,
+  Pencil,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -157,6 +158,7 @@ export function ChatSidebar({
                 isOwner={!currentUserId || conversation.user_id === currentUserId}
                 onSelect={() => onSelectConversation(conversation.id)}
                 onDelete={() => onDeleteConversation(conversation.id)}
+                onRename={onRenameConversation ? (title) => onRenameConversation(conversation.id, title) : undefined}
                 onArchive={
                   onArchiveConversation
                     ? () => onArchiveConversation(conversation.id)
@@ -340,6 +342,7 @@ interface ConversationItemProps {
   isOwner: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onRename?: (title: string) => void;
   onArchive?: () => void;
   onToggleVisibility?: () => void;
 }
@@ -350,11 +353,14 @@ function ConversationItem({
   isOwner,
   onSelect,
   onDelete,
+  onRename,
   onArchive,
   onToggleVisibility,
 }: ConversationItemProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [newTitle, setNewTitle] = useState(conversation.title);
   const [teamCopied, setTeamCopied] = useState(false);
   const [publicCopied, setPublicCopied] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -635,6 +641,19 @@ function ConversationItem({
             </button>
           </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
+            {/* Rename option */}
+            {onRename && (
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setNewTitle(conversation.title);
+                  setShowRenameDialog(true);
+                }}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Rename
+              </DropdownMenuItem>
+            )}
             {/* Share option - only for owner */}
             {isOwner && onToggleVisibility && (
               <>
@@ -663,6 +682,45 @@ function ConversationItem({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Rename Dialog */}
+      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename conversation</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Enter new title"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newTitle.trim()) {
+                  onRename?.(newTitle.trim());
+                  setShowRenameDialog(false);
+                }
+              }}
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowRenameDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (newTitle.trim()) {
+                  onRename?.(newTitle.trim());
+                  setShowRenameDialog(false);
+                }
+              }}
+              disabled={!newTitle.trim()}
+            >
+              Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

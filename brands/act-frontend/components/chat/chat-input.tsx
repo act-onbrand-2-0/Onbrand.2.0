@@ -525,6 +525,7 @@ export function ChatInput({
 	const [mcpServers, setMcpServers] = useState<MCPServer[]>([]);
 	const [isMcpLoading, setIsMcpLoading] = useState(false);
 	const [showMentionHint, setShowMentionHint] = useState<string | null>(null);
+	const [showMcpSelector, setShowMcpSelector] = useState(false);
   const selectedModel = AI_MODELS.find(m => m.id === model) || AI_MODELS[0];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1108,41 +1109,49 @@ export function ChatInput({
 							</DropdownMenuContent>
 						</DropdownMenu>
             
-            {/* Model Selector Dropdown */}
-            <DropdownMenu open={isModelMenuOpen} onOpenChange={setIsModelMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  disabled={disabled || !isReady}
-                >
-                  <selectedModel.icon />
-                  <span className="font-medium">{selectedModel.name}</span>
-                  <ChevronDown className="size-3" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                {AI_MODELS.map((m) => (
-                  <DropdownMenuItem
-                    key={m.id}
-                    onClick={() => {
-                      onModelChange?.(m.id);
-                      setIsModelMenuOpen(false);
-                    }}
-                    className="flex items-center justify-between gap-3"
+            {/* Connections button - opens MCP server selector */}
+            {mcpServers.length > 0 && (
+              <DropdownMenu open={showMcpSelector} onOpenChange={setShowMcpSelector}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors",
+                      selectedMcpServerIds.length > 0
+                        ? "text-foreground bg-muted"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    )}
+                    disabled={disabled || !isReady}
+                    title={`Connections (${selectedMcpServerIds.length} active)`}
                   >
-                    <div className="flex items-center gap-3">
-                      <m.icon />
-                      <div className="flex flex-col">
-                        <div className="font-medium text-sm">{m.name}</div>
-                        <div className="text-xs text-muted-foreground">{m.provider}</div>
+                    <Server className="size-4" />
+                    {selectedMcpServerIds.length > 0 && (
+                      <span className="text-xs font-medium">{selectedMcpServerIds.length}</span>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64">
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    Connections
+                  </div>
+                  {mcpServers.map((server) => (
+                    <DropdownMenuItem
+                      key={server.id}
+                      onClick={() => handleToggleMcpServer(server.id)}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Server className="size-4" />
+                        <span>{server.name}</span>
                       </div>
-                    </div>
-                    {model === m.id && <Check className="size-4 shrink-0" />}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                      {selectedMcpServerIds.includes(server.id) && (
+                        <Check className="size-4 text-primary" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
 						{/* MCP Tools active chips - show each selected server by name */}
 						{selectedMcpServerIds.map((serverId) => {

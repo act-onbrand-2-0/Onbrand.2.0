@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { DashboardSidebar } from '@/components/dashboard-new/sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
+import { usePresence } from '@/hooks/use-presence';
 
 export default function DashboardLayout({
   children,
@@ -15,6 +16,9 @@ export default function DashboardLayout({
   const [user, setUser] = useState<any>(null);
   const [userName, setUserName] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  
+  // Track user presence for notification routing (push vs email)
+  usePresence();
 
   useEffect(() => {
     const supabase = createClient();

@@ -1031,49 +1031,8 @@ function ProjectItem({
   // Computed: is the project shared with anyone?
   const isProjectShared = existingShares.length > 0;
 
-  // Fetch share status on mount - batch to avoid overwhelming browser
-  useEffect(() => {
-    let cancelled = false;
-    
-    const fetchShareStatus = async () => {
-      const allShares: {id: string; userId: string; name: string; status: string}[] = [];
-      const seenUsers = new Set<string>();
-      
-      // Batch requests to avoid ERR_INSUFFICIENT_RESOURCES
-      const batchSize = 3;
-      for (let i = 0; i < conversations.length; i += batchSize) {
-        if (cancelled) return;
-        
-        const batch = conversations.slice(i, i + batchSize);
-        await Promise.all(batch.map(async (conv) => {
-          try {
-            const res = await fetch(`/api/conversation-shares?conversationId=${conv.id}`);
-            if (res.ok) {
-              const data = await res.json();
-              for (const share of (data.shares || [])) {
-                if (!seenUsers.has(share.userId)) {
-                  seenUsers.add(share.userId);
-                  allShares.push(share);
-                }
-              }
-            }
-          } catch {
-            // Silently ignore - share status is not critical
-          }
-        }));
-      }
-      
-      if (!cancelled) {
-        setExistingShares(allShares);
-      }
-    };
-    
-    if (conversations.length > 0) {
-      fetchShareStatus();
-    }
-    
-    return () => { cancelled = true; };
-  }, [conversations]);
+  // Fetch share status on mount - lazy load only when dialog opens to reduce requests
+  // Share status is not critical for initial render
 
   // Load team members and existing shares when share dialog opens
   const loadShareData = async () => {
@@ -1841,30 +1800,8 @@ function ConversationItem({
     });
   };
 
-  // Fetch shares on mount to show icon - with error handling
-  useEffect(() => {
-    let cancelled = false;
-    
-    const fetchShareStatus = async () => {
-      try {
-        const res = await fetch(`/api/conversation-shares?conversationId=${conversation.id}`);
-        if (res.ok && !cancelled) {
-          const data = await res.json();
-          setExistingShares(data.shares || []);
-        }
-      } catch {
-        // Silently ignore - share status is not critical
-      }
-    };
-    
-    // Small delay to stagger requests and avoid browser limits
-    const timer = setTimeout(fetchShareStatus, Math.random() * 500);
-    
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [conversation.id]);
+  // Fetch shares only when share dialog opens - not on mount
+  // This dramatically reduces API requests and prevents browser connection limits
 
   // Generate collaborative invite link
   const handleGenerateInviteLink = async () => {

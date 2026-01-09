@@ -8,6 +8,12 @@
 [build.processing]
   skip_processing = false
 
+# Function settings - increase timeout for AI agents
+[functions]
+  # Note: Requires Netlify Pro plan for timeouts > 26 seconds
+  # Free tier: 10s, Pro tier: up to 60s for Edge Functions
+  node_bundler = "esbuild"
+
 # Branch deploy settings - enables branch subdomains like chatbot.onbrandai.app
 # Uses Netlify's BRANCH env var to construct the subdomain URL dynamically
 [context.branch-deploy.environment]

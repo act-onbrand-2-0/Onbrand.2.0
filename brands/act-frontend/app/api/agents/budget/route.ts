@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
 export const runtime = 'nodejs';
+// Note: Netlify free tier has 10s timeout, Pro has 26s timeout
+// If AI processing takes longer, consider implementing async job queue
 
 /**
  * Budget Planning API
@@ -79,9 +81,10 @@ export async function POST(request: NextRequest) {
     const forwardFormData = new FormData();
     forwardFormData.append('file', file, file.name);
 
-    // Call the n8n webhook with timeout (120 seconds for AI processing)
+    // Call the n8n webhook with timeout
+    // Netlify: Free tier = 10s, Pro = 26s max. Keep under limit to avoid 504.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 seconds
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 seconds (under Netlify Pro limit)
 
     try {
       const response = await fetch(webhookUrl, {
@@ -142,7 +145,7 @@ export async function POST(request: NextRequest) {
       clearTimeout(timeoutId);
       
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        throw new Error('Request timed out after 120 seconds. The AI processing may be taking too long. Please try again or contact support.');
+        throw new Error('Request timed out after 20 seconds. The n8n workflow is taking too long. Consider: 1) Optimizing the n8n workflow, 2) Upgrading to Netlify Pro for 26s timeout, or 3) Implementing async job processing.');
       }
       
       throw fetchError;

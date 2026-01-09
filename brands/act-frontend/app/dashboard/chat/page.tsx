@@ -1274,6 +1274,40 @@ export default function ChatPage() {
     }
   }, [currentConversation, setAiMessages, supabase]);
 
+  // Batch delete conversations
+  const handleBatchDeleteConversations = useCallback(async (conversationIds: string[]) => {
+    if (conversationIds.length === 0) return;
+    
+    // Delete messages for all conversations
+    for (const id of conversationIds) {
+      await supabase
+        .from('messages')
+        .delete()
+        .eq('conversation_id', id);
+    }
+    
+    // Delete all conversations
+    const { error } = await supabase
+      .from('conversations')
+      .delete()
+      .in('id', conversationIds);
+
+    if (error) {
+      alert(`Failed to delete conversations: ${error.message}`);
+      return;
+    }
+    
+    // Update local state
+    setConversations((prev) => prev.filter((c) => !conversationIds.includes(c.id)));
+    
+    // Clear current conversation if it was deleted
+    if (currentConversation && conversationIds.includes(currentConversation.id)) {
+      setCurrentConversation(null);
+      setDbMessages([]);
+      setAiMessages([]);
+    }
+  }, [currentConversation, setAiMessages, supabase]);
+
   // Rename conversation
   const handleRenameConversation = useCallback(async (conversationId: string, newTitle: string) => {
     
@@ -1769,6 +1803,7 @@ export default function ChatPage() {
       onNewChat={handleNewChat}
       onSelectConversation={handleSelectConversation}
       onDeleteConversation={handleDeleteConversation}
+      onBatchDeleteConversations={handleBatchDeleteConversations}
       onRenameConversation={handleRenameConversation}
       onArchiveConversation={handleArchiveConversation}
       onToggleVisibility={handleToggleVisibility}

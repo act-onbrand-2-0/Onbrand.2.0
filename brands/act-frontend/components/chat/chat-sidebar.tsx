@@ -49,7 +49,11 @@ import {
   Search,
   Mail,
   Pencil,
+  CheckSquare,
+  Square,
+  X,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -71,6 +75,7 @@ interface ChatSidebarProps {
   onNewChat: () => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
+  onBatchDeleteConversations?: (ids: string[]) => void;
   onRenameConversation?: (id: string, title: string) => void;
   onArchiveConversation?: (id: string) => void;
   onToggleVisibility?: (id: string, visibility: 'private' | 'shared') => void;
@@ -89,6 +94,7 @@ export function ChatSidebar({
   onNewChat,
   onSelectConversation,
   onDeleteConversation,
+  onBatchDeleteConversations,
   onRenameConversation,
   onArchiveConversation,
   onToggleVisibility,
@@ -99,6 +105,47 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchDialog, setShowSearchDialog] = useState(false);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBatchDeleteDialog, setShowBatchDeleteDialog] = useState(false);
+
+  // Toggle selection of a conversation
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Select all conversations
+  const selectAll = () => {
+    setSelectedIds(new Set(conversations.map(c => c.id)));
+  };
+
+  // Clear selection
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  // Exit select mode
+  const exitSelectMode = () => {
+    setIsSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  // Handle batch delete
+  const handleBatchDelete = () => {
+    if (onBatchDeleteConversations && selectedIds.size > 0) {
+      onBatchDeleteConversations(Array.from(selectedIds));
+      exitSelectMode();
+    }
+    setShowBatchDeleteDialog(false);
+  };
   
   // Filter conversations by search query
   const filteredConversations = searchQuery.trim()
@@ -149,30 +196,40 @@ export function ChatSidebar({
           {items.map((conversation, index) => (
             <div
               key={conversation.id}
-              className="animate-in fade-in slide-in-from-left-2 duration-200"
+              className="animate-in fade-in slide-in-from-left-2 duration-200 flex items-center gap-2"
               style={{ animationDelay: `${Math.min(index * 30, 300)}ms`, animationFillMode: 'both' }}
             >
-              <ConversationItem
-                conversation={conversation}
-                isActive={currentConversationId === conversation.id}
-                isOwner={!currentUserId || conversation.user_id === currentUserId}
-                onSelect={() => onSelectConversation(conversation.id)}
-                onDelete={() => onDeleteConversation(conversation.id)}
-                onRename={onRenameConversation ? (title) => onRenameConversation(conversation.id, title) : undefined}
-                onArchive={
-                  onArchiveConversation
-                    ? () => onArchiveConversation(conversation.id)
-                    : undefined
-                }
-                onToggleVisibility={
-                  onToggleVisibility
-                    ? () => onToggleVisibility(
-                        conversation.id,
-                        conversation.visibility === 'shared' ? 'private' : 'shared'
-                      )
-                    : undefined
-                }
-              />
+              {isSelectMode && (
+                <Checkbox
+                  checked={selectedIds.has(conversation.id)}
+                  onCheckedChange={() => toggleSelection(conversation.id)}
+                  className="ml-2 shrink-0"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <ConversationItem
+                  conversation={conversation}
+                  isActive={currentConversationId === conversation.id}
+                  isOwner={!currentUserId || conversation.user_id === currentUserId}
+                  onSelect={() => isSelectMode ? toggleSelection(conversation.id) : onSelectConversation(conversation.id)}
+                  onDelete={() => onDeleteConversation(conversation.id)}
+                  onRename={onRenameConversation ? (title) => onRenameConversation(conversation.id, title) : undefined}
+                  onArchive={
+                    onArchiveConversation
+                      ? () => onArchiveConversation(conversation.id)
+                      : undefined
+                  }
+                  onToggleVisibility={
+                    onToggleVisibility
+                      ? () => onToggleVisibility(
+                          conversation.id,
+                          conversation.visibility === 'shared' ? 'private' : 'shared'
+                        )
+                      : undefined
+                  }
+                  hideActions={isSelectMode}
+                />
+              </div>
             </div>
           ))}
         </div>
@@ -198,25 +255,100 @@ export function ChatSidebar({
       </div>
       
       {/* Action Buttons - Vertical list with labels */}
-      <div className="px-2 space-y-1">
-        <button
-          onClick={() => {
-            console.log('New chat clicked in sidebar');
-            onNewChat();
-          }}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent transition-colors"
-        >
-          <Plus className="size-4" />
-          <span>New chat</span>
-        </button>
-        <button
-          onClick={() => setShowSearchDialog(true)}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent transition-colors"
-        >
-          <Search className="size-4" />
-          <span>Search chats</span>
-        </button>
-      </div>
+      {!isSelectMode ? (
+        <div className="px-2 space-y-1">
+          <button
+            onClick={() => {
+              console.log('New chat clicked in sidebar');
+              onNewChat();
+            }}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent transition-colors"
+          >
+            <Plus className="size-4" />
+            <span>New chat</span>
+          </button>
+          <button
+            onClick={() => setShowSearchDialog(true)}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent transition-colors"
+          >
+            <Search className="size-4" />
+            <span>Search chats</span>
+          </button>
+          {onBatchDeleteConversations && conversations.length > 0 && (
+            <button
+              onClick={() => setIsSelectMode(true)}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent transition-colors"
+            >
+              <CheckSquare className="size-4" />
+              <span>Select chats</span>
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="px-2 space-y-2">
+          {/* Select mode header */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-sm font-medium">
+              {selectedIds.size} selected
+            </span>
+            <button
+              onClick={exitSelectMode}
+              className="p-1 rounded hover:bg-sidebar-accent"
+              title="Cancel"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+          {/* Select actions */}
+          <div className="flex gap-1">
+            <button
+              onClick={selectedIds.size === conversations.length ? clearSelection : selectAll}
+              className="flex-1 flex items-center justify-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-sidebar-accent transition-colors border border-border"
+            >
+              {selectedIds.size === conversations.length ? (
+                <>
+                  <Square className="size-3" />
+                  <span>None</span>
+                </>
+              ) : (
+                <>
+                  <CheckSquare className="size-3" />
+                  <span>All</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setShowBatchDeleteDialog(true)}
+              disabled={selectedIds.size === 0}
+              className="flex-1 flex items-center justify-center gap-2 rounded-lg px-2 py-1.5 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="size-3" />
+              <span>Delete</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Delete Confirmation Dialog */}
+      <AlertDialog open={showBatchDeleteDialog} onOpenChange={setShowBatchDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} conversation{selectedIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the selected conversations and all their messages.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBatchDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete {selectedIds.size} conversation{selectedIds.size !== 1 ? 's' : ''}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Search Dialog */}
       <Dialog open={showSearchDialog} onOpenChange={setShowSearchDialog}>
@@ -345,6 +477,7 @@ interface ConversationItemProps {
   onRename?: (title: string) => void;
   onArchive?: () => void;
   onToggleVisibility?: () => void;
+  hideActions?: boolean;
 }
 
 function ConversationItem({
@@ -356,6 +489,7 @@ function ConversationItem({
   onRename,
   onArchive,
   onToggleVisibility,
+  hideActions = false,
 }: ConversationItemProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -630,57 +764,59 @@ function ConversationItem({
         {!isOwner && (
           <span className="text-[9px] text-muted-foreground shrink-0">shared</span>
         )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="p-1 rounded hover:bg-accent opacity-60 hover:opacity-100 shrink-0 ml-1"
-              onClick={(e) => e.stopPropagation()}
-              title="More"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
-          </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-            {/* Rename option */}
-            {onRename && (
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setNewTitle(conversation.title);
-                  setShowRenameDialog(true);
-                }}
+        {!hideActions && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="p-1 rounded hover:bg-accent opacity-60 hover:opacity-100 shrink-0 ml-1"
+                onClick={(e) => e.stopPropagation()}
+                title="More"
               >
-                <Pencil className="mr-2 h-4 w-4" />
-                Rename
-              </DropdownMenuItem>
-            )}
-            {/* Share option - only for owner */}
-            {isOwner && onToggleVisibility && (
-              <>
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+              {/* Rename option */}
+              {onRename && (
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleShare();
+                    setNewTitle(conversation.title);
+                    setShowRenameDialog(true);
                   }}
                 >
-                  <Share2 className="mr-2 h-4 w-4" />
-                  Share
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Rename
                 </DropdownMenuItem>
-              </>
-            )}
-            {/* Delete - shows confirmation dialog */}
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive focus:bg-destructive/10"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowDeleteDialog(true);
-              }}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              )}
+              {/* Share option - only for owner */}
+              {isOwner && onToggleVisibility && (
+                <>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleShare();
+                    }}
+                  >
+                    <Share2 className="mr-2 h-4 w-4" />
+                    Share
+                  </DropdownMenuItem>
+                </>
+              )}
+              {/* Delete - shows confirmation dialog */}
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDeleteDialog(true);
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {/* Rename Dialog */}

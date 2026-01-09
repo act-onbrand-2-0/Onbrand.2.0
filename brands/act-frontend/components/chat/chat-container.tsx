@@ -73,6 +73,7 @@ interface ChatContainerProps {
   onNewChat: (projectId?: string, initialMessage?: string) => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
+  onBatchDeleteConversations?: (ids: string[]) => void;
   onRenameConversation?: (id: string, title: string) => void;
   onArchiveConversation?: (id: string) => void;
   onToggleVisibility?: (id: string, visibility: 'private' | 'shared') => void;
@@ -144,6 +145,7 @@ export function ChatContainer({
   onNewChat,
   onSelectConversation,
   onDeleteConversation,
+  onBatchDeleteConversations,
   onRenameConversation,
   onArchiveConversation,
   onToggleVisibility,
@@ -367,6 +369,8 @@ export function ChatContainer({
             onNewChat={() => onNewChat()}
             onSelectConversation={onSelectConversation}
             onDeleteConversation={onDeleteConversation}
+            onBatchDeleteConversations={onBatchDeleteConversations}
+            onRenameConversation={onRenameConversation}
             onArchiveConversation={onArchiveConversation}
             onToggleVisibility={onToggleVisibility}
             onCollapse={() => setSidebarCollapsed(true)}

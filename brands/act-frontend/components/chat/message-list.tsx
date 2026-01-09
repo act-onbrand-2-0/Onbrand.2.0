@@ -5,6 +5,13 @@ import { ArrowDown, Wrench, Loader2, Sparkles } from 'lucide-react';
 import { ChatMessage, ThinkingMessage, type MessageAttachment, type ToolInvocation } from './chat-message';
 import { Greeting } from './greeting';
 
+// Reaction types
+interface ReactionGroup {
+  count: number;
+  userIds: string[];
+  userReacted: boolean;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -30,6 +37,9 @@ interface MessageListProps {
   userName?: string;
   isCollaborativeChat?: boolean;
   typingUsers?: {userId: string; userName: string}[];
+  // Reactions props
+  reactions?: Record<string, Record<string, ReactionGroup>>;
+  onToggleReaction?: (messageId: string, emoji: string) => void;
 }
 
 export function MessageList({
@@ -42,6 +52,8 @@ export function MessageList({
   userName,
   isCollaborativeChat = false,
   typingUsers = [],
+  reactions = {},
+  onToggleReaction,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -97,6 +109,10 @@ export function MessageList({
               isCollaborative={isCollaborativeChat}
               timestamp={message.created_at}
               metadata={message.metadata}
+              // Reactions props
+              messageId={message.id}
+              reactions={reactions[message.id]}
+              onToggleReaction={onToggleReaction ? (emoji) => onToggleReaction(message.id, emoji) : undefined}
             />
           ))}
 

@@ -120,6 +120,10 @@ interface ChatContainerProps {
   // Typing indicators
   typingUsers?: {userId: string; userName: string}[];
   onInputChange?: (value: string) => void;
+  
+  // Message reactions
+  reactions?: Record<string, Record<string, { count: number; userIds: string[]; userReacted: boolean }>>;
+  onToggleReaction?: (messageId: string, emoji: string) => void;
 }
 
 export function ChatContainer({
@@ -173,6 +177,8 @@ export function ChatContainer({
 	isCollaborativeChat = false,
 	typingUsers = [],
 	onInputChange,
+	reactions = {},
+	onToggleReaction,
 }: ChatContainerProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
@@ -255,6 +261,8 @@ export function ChatContainer({
               userName={userName}
               isCollaborativeChat={isCollaborativeChat}
               typingUsers={typingUsers}
+              reactions={reactions}
+              onToggleReaction={onToggleReaction}
             />
 
             {/* Suggested Actions - Show when no messages and input is empty */}

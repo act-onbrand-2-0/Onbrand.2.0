@@ -1,8 +1,13 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Sparkles, FileText, Copy, Check, Wrench, Loader2, CheckCircle } from 'lucide-react';
+import { Sparkles, FileText, Copy, Check, Wrench, Loader2, CheckCircle, SmilePlus } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import remarkGfm from 'remark-gfm';
 import { useState, useCallback, ReactNode, useEffect, useRef } from 'react';
 import hljs from 'highlight.js/lib/core';
@@ -183,9 +188,105 @@ function ToolCallDisplay({ invocation }: { invocation: ToolInvocation }) {
   );
 }
 
+// Common emoji reactions
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '🎉', '🔥', '👀'];
+
+// Emoji reaction type
+interface ReactionGroup {
+  count: number;
+  userIds: string[];
+  userReacted: boolean;
+}
+
+// Emoji picker component
+function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) {
+  const allEmojis = ['👍', '👎', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥', '👀', '💯', '✅', '❌', '🙏', '💪', '🤔'];
+  
+  return (
+    <div className="grid grid-cols-8 gap-1 p-2">
+      {allEmojis.map((emoji) => (
+        <button
+          key={emoji}
+          onClick={() => {
+            onSelect(emoji);
+            onClose();
+          }}
+          className="p-1.5 text-lg hover:bg-muted rounded transition-colors"
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Reactions display component
+function MessageReactions({ 
+  messageId, 
+  reactions, 
+  onToggleReaction 
+}: { 
+  messageId: string;
+  reactions: Record<string, ReactionGroup>;
+  onToggleReaction: (emoji: string) => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  
+  const sortedReactions = Object.entries(reactions).sort((a, b) => b[1].count - a[1].count);
+  
+  return (
+    <div className="flex flex-wrap items-center gap-1 mt-1">
+      {sortedReactions.map(([emoji, group]) => (
+        <button
+          key={emoji}
+          onClick={() => onToggleReaction(emoji)}
+          className={cn(
+            'flex items-center gap-1 px-2 py-0.5 text-sm rounded-full border transition-colors',
+            group.userReacted 
+              ? 'bg-primary/10 border-primary/30 text-primary' 
+              : 'bg-muted/50 border-border hover:bg-muted'
+          )}
+        >
+          <span>{emoji}</span>
+          <span className="text-xs">{group.count}</span>
+        </button>
+      ))}
+      
+      {/* Add reaction button */}
+      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+        <PopoverTrigger asChild>
+          <button
+            className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors opacity-0 group-hover/message:opacity-100"
+            title="Add reaction"
+          >
+            <SmilePlus className="size-4" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <EmojiPicker 
+            onSelect={onToggleReaction} 
+            onClose={() => setPickerOpen(false)} 
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 // Message action buttons (copy) for assistant messages
-function MessageActions({ content }: { content: string }) {
+function MessageActions({ 
+  content, 
+  messageId,
+  reactions,
+  onToggleReaction 
+}: { 
+  content: string;
+  messageId?: string;
+  reactions?: Record<string, ReactionGroup>;
+  onToggleReaction?: (emoji: string) => void;
+}) {
   const [copied, setCopied] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -206,6 +307,26 @@ function MessageActions({ content }: { content: string }) {
       >
         {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
       </button>
+      
+      {/* Add reaction button for assistant messages */}
+      {messageId && onToggleReaction && (
+        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+          <PopoverTrigger asChild>
+            <button
+              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+              title="Add reaction"
+            >
+              <SmilePlus className="size-4" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <EmojiPicker 
+              onSelect={onToggleReaction} 
+              onClose={() => setPickerOpen(false)} 
+            />
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   );
 }
@@ -223,6 +344,10 @@ interface ChatMessageProps {
   isCollaborative?: boolean;
   timestamp?: string; // ISO date string
   metadata?: { type?: string; user_name?: string }; // For system messages
+  // Reactions props
+  messageId?: string;
+  reactions?: Record<string, ReactionGroup>;
+  onToggleReaction?: (emoji: string) => void;
 }
 
 // Format timestamp for display
@@ -258,6 +383,9 @@ export function ChatMessage({
   isCollaborative = false,
   timestamp,
   metadata,
+  messageId,
+  reactions,
+  onToggleReaction,
 }: ChatMessageProps) {
   const isUser = role === 'user';
   const isSystem = role === 'system';
@@ -486,9 +614,45 @@ export function ChatMessage({
             </div>
           )}
 
+          {/* Reactions display */}
+          {messageId && reactions && Object.keys(reactions).length > 0 && onToggleReaction && (
+            <MessageReactions 
+              messageId={messageId} 
+              reactions={reactions} 
+              onToggleReaction={onToggleReaction}
+            />
+          )}
+
           {/* Action buttons for assistant messages */}
           {!isUser && content && !isStreaming && (
-            <MessageActions content={content} />
+            <MessageActions 
+              content={content} 
+              messageId={messageId}
+              reactions={reactions}
+              onToggleReaction={onToggleReaction}
+            />
+          )}
+          
+          {/* Add reaction button for user messages (shown on hover) */}
+          {isUser && messageId && onToggleReaction && !isStreaming && (
+            <div className="flex justify-end opacity-0 group-hover/message:opacity-100 transition-opacity">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors"
+                    title="Add reaction"
+                  >
+                    <SmilePlus className="size-4" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <EmojiPicker 
+                    onSelect={onToggleReaction} 
+                    onClose={() => {}} 
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           )}
         </div>
       </div>

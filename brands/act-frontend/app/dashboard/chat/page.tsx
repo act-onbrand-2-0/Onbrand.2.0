@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { ChatContainer } from '@/components/chat/chat-container';
 import { type ModelId, type Attachment, hasAIMention } from '@/components/chat/chat-input';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useMessageReactions } from '@/lib/hooks/use-message-reactions';
 
 // Helper to convert file to base64
 async function fileToBase64(file: File): Promise<string> {
@@ -170,6 +171,19 @@ export default function ChatPage() {
   const [isDeepResearchActive, setIsDeepResearchActive] = useState(false);
   const [pendingAutoSend, setPendingAutoSend] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Message reactions
+  const { reactions, fetchReactions, toggleReaction } = useMessageReactions(currentConversation?.id || null);
+
+  // Fetch reactions when messages change
+  useEffect(() => {
+    if (aiMessages.length > 0) {
+      const messageIds = aiMessages.map(m => m.id).filter(id => id);
+      if (messageIds.length > 0) {
+        fetchReactions(messageIds);
+      }
+    }
+  }, [aiMessages, fetchReactions]);
 
   const stop = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -1785,6 +1799,8 @@ export default function ChatPage() {
       isCollaborativeChat={isCollaborativeChat}
       typingUsers={typingUsers}
       onInputChange={handleInputChange}
+      reactions={reactions}
+      onToggleReaction={toggleReaction}
     />
   );
 }

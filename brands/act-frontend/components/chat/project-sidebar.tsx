@@ -1031,34 +1031,48 @@ function ProjectItem({
   // Computed: is the project shared with anyone?
   const isProjectShared = existingShares.length > 0;
 
-  // Fetch share status on mount
+  // Fetch share status on mount - batch to avoid overwhelming browser
   useEffect(() => {
+    let cancelled = false;
+    
     const fetchShareStatus = async () => {
       const allShares: {id: string; userId: string; name: string; status: string}[] = [];
       const seenUsers = new Set<string>();
       
-      for (const conv of conversations) {
-        try {
-          const res = await fetch(`/api/conversation-shares?conversationId=${conv.id}`);
-          if (res.ok) {
-            const data = await res.json();
-            for (const share of (data.shares || [])) {
-              if (!seenUsers.has(share.userId)) {
-                seenUsers.add(share.userId);
-                allShares.push(share);
+      // Batch requests to avoid ERR_INSUFFICIENT_RESOURCES
+      const batchSize = 3;
+      for (let i = 0; i < conversations.length; i += batchSize) {
+        if (cancelled) return;
+        
+        const batch = conversations.slice(i, i + batchSize);
+        await Promise.all(batch.map(async (conv) => {
+          try {
+            const res = await fetch(`/api/conversation-shares?conversationId=${conv.id}`);
+            if (res.ok) {
+              const data = await res.json();
+              for (const share of (data.shares || [])) {
+                if (!seenUsers.has(share.userId)) {
+                  seenUsers.add(share.userId);
+                  allShares.push(share);
+                }
               }
             }
+          } catch {
+            // Silently ignore - share status is not critical
           }
-        } catch (error) {
-          console.error('Error fetching share status:', error);
-        }
+        }));
       }
-      setExistingShares(allShares);
+      
+      if (!cancelled) {
+        setExistingShares(allShares);
+      }
     };
     
     if (conversations.length > 0) {
       fetchShareStatus();
     }
+    
+    return () => { cancelled = true; };
   }, [conversations]);
 
   // Load team members and existing shares when share dialog opens
@@ -1827,20 +1841,29 @@ function ConversationItem({
     });
   };
 
-  // Fetch shares on mount to show icon
+  // Fetch shares on mount to show icon - with error handling
   useEffect(() => {
+    let cancelled = false;
+    
     const fetchShareStatus = async () => {
       try {
         const res = await fetch(`/api/conversation-shares?conversationId=${conversation.id}`);
-        if (res.ok) {
+        if (res.ok && !cancelled) {
           const data = await res.json();
           setExistingShares(data.shares || []);
         }
-      } catch (error) {
-        console.error('Error fetching share status:', error);
+      } catch {
+        // Silently ignore - share status is not critical
       }
     };
-    fetchShareStatus();
+    
+    // Small delay to stagger requests and avoid browser limits
+    const timer = setTimeout(fetchShareStatus, Math.random() * 500);
+    
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [conversation.id]);
 
   // Generate collaborative invite link

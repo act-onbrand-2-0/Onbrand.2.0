@@ -499,7 +499,12 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
         streamOptions.tools = tools;
         streamOptions.stopWhen = stepCountIs(5);
         streamOptions.toolChoice = 'auto';
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        
+        // If MCP tools are available, instruct the AI to use them proactively
+        if (hasMCPTools) {
+          const mcpToolNames = Object.keys(mcpTools).slice(0, 10).join(', ');
+          streamOptions.system = `${streamOptions.system || finalSystemPrompt}\n\nIMPORTANT: You have access to external tools that can help you complete tasks. Available tools include: ${mcpToolNames}${Object.keys(mcpTools).length > 10 ? ', and more' : ''}. When the user's request can be fulfilled or enhanced by using these tools, USE THEM AUTOMATICALLY without waiting to be asked. For example, if asked to fetch data, look up information, or perform actions that match your available tools, use them immediately. Be proactive - don't just describe what you could do, actually do it.`;
+        }
       }
 
       // Validate we have messages to send

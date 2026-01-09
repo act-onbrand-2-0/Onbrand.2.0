@@ -78,16 +78,24 @@ export async function POST(request: NextRequest) {
         agent_type: 'budget',
         status: 'pending',
         input_data: { fileName: file.name, fileSize: file.size },
+        created_by: null, // Will be set by auth.uid() in RLS, or null for service role
       })
       .select()
       .single();
 
     if (jobError || !job) {
       console.error('Failed to create job:', jobError);
+      console.error('Job error details:', {
+        message: jobError?.message,
+        details: jobError?.details,
+        hint: jobError?.hint,
+        code: jobError?.code,
+      });
       return NextResponse.json(
         {
           error: 'Failed to create job',
           details: jobError?.message || 'Unknown error',
+          hint: jobError?.hint || 'The agent_jobs table may not exist. Run the database migration first.',
           code: 'DATABASE_ERROR',
         },
         { status: 500 }

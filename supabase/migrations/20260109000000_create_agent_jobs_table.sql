@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS agent_jobs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
-  created_by UUID REFERENCES auth.users(id),
+  created_by UUID, -- Can be null for system-created jobs
   
   CONSTRAINT valid_status CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
   CONSTRAINT valid_agent_type CHECK (agent_type IN ('corvee', 'budget'))
@@ -27,23 +27,36 @@ CREATE INDEX IF NOT EXISTS idx_agent_jobs_created_by ON agent_jobs(created_by);
 -- Enable Row Level Security
 ALTER TABLE agent_jobs ENABLE ROW LEVEL SECURITY;
 
--- Policy: Users can see their own jobs
-CREATE POLICY "Users can view their own agent jobs"
+-- Policy: Users can see their own jobs OR jobs for their brand
+CREATE POLICY "Users can view agent jobs for their brand"
   ON agent_jobs
   FOR SELECT
-  USING (auth.uid() = created_by);
+  USING (
+    auth.uid() = created_by 
+    OR created_by IS NULL
+    OR brand_id IN (
+      SELECT brand_id FROM user_brands WHERE user_id = auth.uid()
+    )
+  );
 
--- Policy: Users can create jobs
-CREATE POLICY "Users can create agent jobs"
+-- Policy: Authenticated users can create jobs
+CREATE POLICY "Authenticated users can create agent jobs"
   ON agent_jobs
   FOR INSERT
-  WITH CHECK (auth.uid() = created_by);
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    OR auth.role() = 'service_role'
+  );
 
--- Policy: System can update jobs (for background processing)
-CREATE POLICY "System can update agent jobs"
+-- Policy: Service role can update all jobs (for background processing)
+-- Users can update their own jobs
+CREATE POLICY "Update agent jobs"
   ON agent_jobs
   FOR UPDATE
-  USING (true);
+  USING (
+    auth.role() = 'service_role'
+    OR auth.uid() = created_by
+  );
 
 -- Add comment
 COMMENT ON TABLE agent_jobs IS 'Stores async job status for long-running agent tasks (Corvee, Budget Planning)';

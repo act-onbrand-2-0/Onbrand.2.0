@@ -633,8 +633,8 @@ export function ChatMessage({
             />
           )}
           
-          {/* Add reaction button for user messages (shown on hover) */}
-          {isUser && messageId && onToggleReaction && !isStreaming && (
+          {/* Add reaction button for user messages - only if no reactions yet (MessageReactions has its own add button) */}
+          {isUser && messageId && onToggleReaction && !isStreaming && (!reactions || Object.keys(reactions).length === 0) && (
             <div className="flex justify-end opacity-0 group-hover/message:opacity-100 transition-opacity">
               <Popover>
                 <PopoverTrigger asChild>

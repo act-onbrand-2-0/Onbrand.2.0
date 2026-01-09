@@ -46,6 +46,7 @@ import {
   Moon,
   Check,
   Plus,
+  Bot,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { NotificationBell } from "@/components/notifications";
@@ -60,6 +61,11 @@ const menuItems = [
     title: "Chat",
     icon: Sparkles,
     href: "/chat",
+  },
+  {
+    title: "Agents",
+    icon: Bot,
+    href: "/agents",
   },
   {
     title: "Brand Config",

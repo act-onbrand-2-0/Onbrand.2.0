@@ -1,7 +1,7 @@
 -- Create message_reactions table for emoji reactions on messages
 CREATE TABLE IF NOT EXISTS message_reactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  message_id UUID NOT NULL, -- No FK constraint to avoid race conditions with async message saves
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   emoji VARCHAR(10) NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),

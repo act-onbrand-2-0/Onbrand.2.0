@@ -328,11 +328,17 @@ function generateToolBasedSuggestions(tools: MCPToolInfo[]): Array<{ title: stri
 // Cache tools globally to enable instant updates
 const toolsCache = new Map<string, MCPToolInfo[]>();
 
+// Cache for custom conversation starters per brand
+const startersCache = new Map<string, Record<string, Array<{ title: string; label: string }>>>();
+
 export function SuggestedActions({ onSelect, jobFunction, selectedMcpServers, brandId, selectedMcpServerIds }: SuggestedActionsProps) {
   // Fetch MCP tools directly when servers are selected
   const [mcpTools, setMcpTools] = useState<MCPToolInfo[]>([]);
   const [isLoadingTools, setIsLoadingTools] = useState(false);
   const [fetchedServers, setFetchedServers] = useState<MCPServerInfo[]>([]);
+  
+  // Custom conversation starters from brand settings
+  const [customStarters, setCustomStarters] = useState<Record<string, Array<{ title: string; label: string }>> | null>(null);
   
   // Create cache key from selected server IDs
   const cacheKey = selectedMcpServerIds?.sort().join(',') || '';
@@ -343,6 +349,32 @@ export function SuggestedActions({ onSelect, jobFunction, selectedMcpServers, br
       setMcpTools(toolsCache.get(cacheKey)!);
     }
   }, [cacheKey]);
+  
+  // Fetch custom conversation starters from brand settings
+  useEffect(() => {
+    if (!brandId) return;
+    
+    // Check cache first
+    if (startersCache.has(brandId)) {
+      setCustomStarters(startersCache.get(brandId)!);
+      return;
+    }
+    
+    async function fetchCustomStarters() {
+      try {
+        const response = await fetch(`/api/brand-settings/conversation-starters?brandId=${brandId}`);
+        const data = await response.json();
+        if (response.ok && data.is_custom && data.conversation_starters) {
+          setCustomStarters(data.conversation_starters);
+          startersCache.set(brandId!, data.conversation_starters);
+        }
+      } catch (error) {
+        console.error('Failed to fetch custom starters:', error);
+      }
+    }
+    
+    fetchCustomStarters();
+  }, [brandId]);
   
   // Fetch server info for display
   useEffect(() => {
@@ -414,9 +446,20 @@ export function SuggestedActions({ onSelect, jobFunction, selectedMcpServers, br
     ? selectedMcpServers 
     : fetchedServers;
   
-  // Generate suggestions: prioritize dynamic tool-based, fallback to pattern-based, then role-based
+  // Helper to get role-based suggestions (custom or default)
+  const getRoleSuggestions = (role?: string | null): Array<{ title: string; label: string }> => {
+    if (customStarters && role && customStarters[role]) {
+      return customStarters[role];
+    }
+    if (customStarters && customStarters['Other']) {
+      return customStarters['Other'];
+    }
+    return getSuggestedActionsForRole(role);
+  };
+  
+  // Generate suggestions: prioritize dynamic tool-based, fallback to pattern-based, then role-based (custom or default)
   let suggestions: Array<{ title: string; label: string }>;
-  let source: 'mcp-tools' | 'mcp' | 'role';
+  let source: 'mcp-tools' | 'mcp' | 'role' | 'custom';
   
   if (mcpTools.length > 0) {
     // Use actual MCP tool metadata for dynamic suggestions
@@ -428,10 +471,9 @@ export function SuggestedActions({ onSelect, jobFunction, selectedMcpServers, br
     suggestions = result.suggestions;
     source = result.source === 'mcp' ? 'mcp' : 'role';
   } else {
-    // Default role-based suggestions
-    const result = getSuggestionsForContext(undefined, jobFunction);
-    suggestions = result.suggestions;
-    source = 'role';
+    // Use custom starters if available, otherwise default role-based suggestions
+    suggestions = getRoleSuggestions(jobFunction);
+    source = customStarters ? 'custom' : 'role';
   }
   
   // Get unique server names from tools or servers

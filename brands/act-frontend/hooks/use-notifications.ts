@@ -8,7 +8,7 @@ export interface Notification {
   id: string;
   user_id: string;
   brand_id: string | null;
-  type: 'conversation_shared' | 'project_shared' | 'message_shared' | 'share_accepted' | 'share_declined' | 'mention' | 'system';
+  type: 'conversation_shared' | 'project_shared' | 'message_shared' | 'share_accepted' | 'share_declined' | 'mention' | 'system' | 'role_change' | 'team_invite' | 'team_removed';
   title: string;
   message: string | null;
   metadata: Record<string, any>;

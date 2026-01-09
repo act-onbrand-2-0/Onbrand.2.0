@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, Check, MessageSquare, Share2, Trash2, X, Users } from 'lucide-react';
+import { Bell, Check, MessageSquare, Share2, Trash2, X, Users, Crown, UserMinus, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -29,6 +29,12 @@ function NotificationIcon({ type }: { type: Notification['type'] }) {
       return <X className="h-4 w-4 text-red-500" />;
     case 'mention':
       return <Users className="h-4 w-4 text-orange-500" />;
+    case 'role_change':
+      return <Crown className="h-4 w-4 text-amber-500" />;
+    case 'team_invite':
+      return <UserPlus className="h-4 w-4 text-green-500" />;
+    case 'team_removed':
+      return <UserMinus className="h-4 w-4 text-red-500" />;
     default:
       return <Bell className="h-4 w-4 text-muted-foreground" />;
   }

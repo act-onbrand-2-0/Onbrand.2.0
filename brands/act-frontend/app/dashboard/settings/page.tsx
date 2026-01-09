@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Settings, Server, Bell, Shield, Palette, Users } from 'lucide-react';
+import { Settings, Server, Bell, Shield, Palette, Users, MessageSquare } from 'lucide-react';
 import { MCPServerManager } from '@/components/mcp';
+import { ConversationStartersEditor } from '@/components/settings/conversation-starters-editor';
+import { TeamManager } from '@/components/settings/team-manager';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
-type SettingsTab = 'general' | 'mcp' | 'notifications' | 'security' | 'appearance' | 'team';
+type SettingsTab = 'general' | 'conversation-starters' | 'mcp' | 'notifications' | 'security' | 'appearance' | 'team';
 
 interface TabConfig {
   id: SettingsTab;
@@ -17,6 +19,7 @@ interface TabConfig {
 
 const tabs: TabConfig[] = [
   { id: 'general', label: 'General', icon: <Settings className="size-4" />, description: 'Basic settings' },
+  { id: 'conversation-starters', label: 'Chat Starters', icon: <MessageSquare className="size-4" />, description: 'Role prompts' },
   { id: 'mcp', label: 'MCP Servers', icon: <Server className="size-4" />, description: 'AI tool integrations' },
   { id: 'notifications', label: 'Notifications', icon: <Bell className="size-4" />, description: 'Email and push' },
   { id: 'security', label: 'Security', icon: <Shield className="size-4" />, description: 'Authentication' },
@@ -26,6 +29,7 @@ const tabs: TabConfig[] = [
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [userId, setUserId] = useState<string | null>(null);
   const [brandId, setBrandId] = useState<string | null>(null);
   const [brandName, setBrandName] = useState<string>('');
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -43,6 +47,8 @@ export default function SettingsPage() {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session?.user) return;
+        
+        setUserId(session.user.id);
 
         const { data: brandUserData } = await supabase
           .from('brand_users')
@@ -222,6 +228,32 @@ export default function SettingsPage() {
               </div>
             )}
 
+            {activeTab === 'conversation-starters' && (
+              <div>
+                {!isAdmin ? (
+                  <div className="text-center py-12">
+                    <Shield className="size-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="font-medium mb-2">Admin Access Required</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Only brand admins can customize conversation starters.
+                    </p>
+                  </div>
+                ) : !jobFunction ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="size-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="font-medium mb-2">Select a Job Function First</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Go to General settings and select your job function to customize conversation starters.
+                    </p>
+                  </div>
+                ) : brandId && userId ? (
+                  <ConversationStartersEditor brandId={brandId} userId={userId} jobFunction={jobFunction} />
+                ) : (
+                  <p className="text-muted-foreground">Unable to load conversation starters.</p>
+                )}
+              </div>
+            )}
+
             {activeTab === 'mcp' && (
               <div>
                 {!isAdmin ? (
@@ -298,18 +330,20 @@ export default function SettingsPage() {
             )}
 
             {activeTab === 'team' && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-lg font-semibold mb-1">Team Members</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Manage team members and roles
-                  </p>
-                </div>
-                <div className="p-4 border rounded-lg bg-muted/50">
-                  <p className="text-sm text-muted-foreground">
-                    Team management coming soon.
-                  </p>
-                </div>
+              <div>
+                {!isAdmin ? (
+                  <div className="text-center py-12">
+                    <Shield className="size-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="font-medium mb-2">Admin Access Required</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Only brand owners and admins can manage team members.
+                    </p>
+                  </div>
+                ) : brandId && userRole ? (
+                  <TeamManager brandId={brandId} userRole={userRole} />
+                ) : (
+                  <p className="text-muted-foreground">Unable to load team settings.</p>
+                )}
               </div>
             )}
           </div>

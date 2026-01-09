@@ -1386,30 +1386,35 @@ function ProjectItem({
       {/* Expanded Conversations */}
       {isExpanded && conversations.length > 0 && (
         <div className="ml-6 space-y-1 mt-1">
-          {conversations.map((conv) => (
-            <ConversationItem
+          {conversations.map((conv, index) => (
+            <div
               key={conv.id}
-              conversation={conv}
-              isActive={currentConversationId === conv.id}
-              isOwner={!currentUserId || conv.user_id === currentUserId}
-              onSelect={() => onSelectConversation(conv.id)}
-              onDelete={() => onDeleteConversation(conv.id)}
-              onRename={onRenameConversation ? (title) => onRenameConversation(conv.id, title) : undefined}
-              onArchive={
-                onArchiveConversation
-                  ? () => onArchiveConversation(conv.id)
-                  : undefined
-              }
-              onToggleVisibility={
-                onToggleVisibility
-                  ? () =>
-                      onToggleVisibility(
-                        conv.id,
-                        conv.visibility === 'shared' ? 'private' : 'shared'
-                      )
-                  : undefined
-              }
-            />
+              className="animate-in fade-in slide-in-from-left-2 duration-200"
+              style={{ animationDelay: `${Math.min(index * 30, 300)}ms`, animationFillMode: 'both' }}
+            >
+              <ConversationItem
+                conversation={conv}
+                isActive={currentConversationId === conv.id}
+                isOwner={!currentUserId || conv.user_id === currentUserId}
+                onSelect={() => onSelectConversation(conv.id)}
+                onDelete={() => onDeleteConversation(conv.id)}
+                onRename={onRenameConversation ? (title) => onRenameConversation(conv.id, title) : undefined}
+                onArchive={
+                  onArchiveConversation
+                    ? () => onArchiveConversation(conv.id)
+                    : undefined
+                }
+                onToggleVisibility={
+                  onToggleVisibility
+                    ? () =>
+                        onToggleVisibility(
+                          conv.id,
+                          conv.visibility === 'shared' ? 'private' : 'shared'
+                        )
+                    : undefined
+                }
+              />
+            </div>
           ))}
         </div>
       )}

@@ -145,28 +145,33 @@ export function ChatSidebar({
           {title}
         </h3>
         <div className="space-y-1">
-          {items.map((conversation) => (
-            <ConversationItem
+          {items.map((conversation, index) => (
+            <div
               key={conversation.id}
-              conversation={conversation}
-              isActive={currentConversationId === conversation.id}
-              isOwner={!currentUserId || conversation.user_id === currentUserId}
-              onSelect={() => onSelectConversation(conversation.id)}
-              onDelete={() => onDeleteConversation(conversation.id)}
-              onArchive={
-                onArchiveConversation
-                  ? () => onArchiveConversation(conversation.id)
-                  : undefined
-              }
-              onToggleVisibility={
-                onToggleVisibility
-                  ? () => onToggleVisibility(
-                      conversation.id,
-                      conversation.visibility === 'shared' ? 'private' : 'shared'
-                    )
-                  : undefined
-              }
-            />
+              className="animate-in fade-in slide-in-from-left-2 duration-200"
+              style={{ animationDelay: `${Math.min(index * 30, 300)}ms`, animationFillMode: 'both' }}
+            >
+              <ConversationItem
+                conversation={conversation}
+                isActive={currentConversationId === conversation.id}
+                isOwner={!currentUserId || conversation.user_id === currentUserId}
+                onSelect={() => onSelectConversation(conversation.id)}
+                onDelete={() => onDeleteConversation(conversation.id)}
+                onArchive={
+                  onArchiveConversation
+                    ? () => onArchiveConversation(conversation.id)
+                    : undefined
+                }
+                onToggleVisibility={
+                  onToggleVisibility
+                    ? () => onToggleVisibility(
+                        conversation.id,
+                        conversation.visibility === 'shared' ? 'private' : 'shared'
+                      )
+                    : undefined
+                }
+              />
+            </div>
           ))}
         </div>
       </div>
@@ -371,21 +376,7 @@ function ConversationItem({
   const [isSharingByEmail, setIsSharingByEmail] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   
-  // Fetch shares on mount to show icon
-  useEffect(() => {
-    const fetchShareStatus = async () => {
-      try {
-        const res = await fetch(`/api/conversation-shares?conversationId=${conversation.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setExistingShares(data.shares || []);
-        }
-      } catch (error) {
-        console.error('Error fetching share status:', error);
-      }
-    };
-    fetchShareStatus();
-  }, [conversation.id]);
+  // Share status is fetched when dialog opens, not on mount (to reduce API calls)
 
   // Fetch team members when share dialog opens
   useEffect(() => {

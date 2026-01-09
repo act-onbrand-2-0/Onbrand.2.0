@@ -59,8 +59,13 @@ export function MessageList({
   const endRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    endRef.current?.scrollIntoView({ behavior });
+  // Use instant scroll during streaming to avoid jitter
+  const scrollToBottom = useCallback((instant = false) => {
+    if (instant) {
+      endRef.current?.scrollIntoView({ behavior: 'instant' });
+    } else {
+      endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, []);
 
   // Check if scrolled to bottom
@@ -74,16 +79,29 @@ export function MessageList({
       setIsAtBottom(atBottom);
     };
 
-    container.addEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Auto-scroll when new messages arrive
+  // Auto-scroll when new messages arrive - use instant during streaming
   useEffect(() => {
     if (isAtBottom) {
-      scrollToBottom();
+      scrollToBottom(isStreaming);
     }
-  }, [messages, streamingContent, isAtBottom, scrollToBottom]);
+  }, [messages, isAtBottom, scrollToBottom, isStreaming]);
+  
+  // Throttled scroll during streaming content updates
+  const lastScrollRef = useRef(0);
+  useEffect(() => {
+    if (isAtBottom && isStreaming && streamingContent) {
+      const now = Date.now();
+      // Only scroll every 100ms during streaming to reduce jitter
+      if (now - lastScrollRef.current > 100) {
+        lastScrollRef.current = now;
+        endRef.current?.scrollIntoView({ behavior: 'instant' });
+      }
+    }
+  }, [streamingContent, isAtBottom, isStreaming]);
 
   return (
     <div className="relative flex-1">
@@ -176,7 +194,7 @@ export function MessageList({
             ? 'pointer-events-none scale-0 opacity-0'
             : 'pointer-events-auto scale-100 opacity-100'
         }`}
-        onClick={() => scrollToBottom('smooth')}
+        onClick={() => scrollToBottom(false)}
         type="button"
       >
         <ArrowDown className="size-4" />

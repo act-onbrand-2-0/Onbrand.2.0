@@ -1769,6 +1769,7 @@ export default function ChatPage() {
       onNewChat={handleNewChat}
       onSelectConversation={handleSelectConversation}
       onDeleteConversation={handleDeleteConversation}
+      onRenameConversation={handleRenameConversation}
       onArchiveConversation={handleArchiveConversation}
       onToggleVisibility={handleToggleVisibility}
       onToggleProjectVisibility={handleToggleProjectVisibility}

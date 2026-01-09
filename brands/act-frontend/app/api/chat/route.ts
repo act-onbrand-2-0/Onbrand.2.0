@@ -60,28 +60,13 @@ async function getMCPTools(brandId: string, serverIds?: string[]): Promise<{ too
     return { tools: {}, cleanup: async () => {} };
   }
 
-  console.log(`Found ${servers.length} MCP servers for brand ${brandId}`);
-  
-  // Debug: Log server auth info (without exposing actual tokens)
-  servers.forEach(s => {
-    console.log(`MCP Server ${s.name}: auth_type=${s.auth_type}, has_token=${!!s.auth_token_encrypted}, token_length=${s.auth_token_encrypted?.length || 0}`);
-  });
 
   // Dynamically import MCP manager to prevent build-time bundling
   const { createMCPManager } = await import('@/lib/mcp/client-manager-loader');
   const manager = await createMCPManager();
   const statuses = await manager.connectAll(servers);
 
-  const connectedCount = statuses.filter((s: MCPConnectionStatus) => s.connected).length;
-  console.log(`Connected to ${connectedCount}/${servers.length} MCP servers`);
-
-  // Log any connection errors
-  statuses.filter((s: MCPConnectionStatus) => !s.connected).forEach((s: MCPConnectionStatus) => {
-    console.warn(`MCP server ${s.serverName} failed to connect: ${s.error}`);
-  });
-
   const tools = await manager.getAllTools();
-  console.log(`Loaded ${Object.keys(tools).length} MCP tools`);
 
   return {
     tools,
@@ -92,8 +77,8 @@ async function getMCPTools(brandId: string, serverIds?: string[]): Promise<{ too
 // Available models with their display names and provider info
 const MODELS = {
   // Claude models
-  'claude-4.5': { provider: 'anthropic', modelId: 'claude-sonnet-4-5', name: 'Claude 4.5' },
-  'claude-3-sonnet': { provider: 'anthropic', modelId: 'claude-sonnet-4-5', name: 'Claude 4.5' },
+  'claude-4.5': { provider: 'anthropic', modelId: 'claude-sonnet-4-5-20250929', name: 'Claude 4.5' },
+  'claude-3-sonnet': { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514', name: 'Claude 4' },
   
   // GPT models
   'gpt-5.2': { provider: 'openai', modelId: 'gpt-4o', name: 'GPT 5.2' },
@@ -101,8 +86,8 @@ const MODELS = {
   'gpt-4o-mini': { provider: 'openai', modelId: 'gpt-4o-mini', name: 'GPT 4o Mini' },
   
   // Gemini models
-  'gemini-3.1': { provider: 'google', modelId: 'gemini-2.0-flash', name: 'Gemini 3.1' },
-  'gemini-pro': { provider: 'google', modelId: 'gemini-1.5-pro', name: 'Gemini Pro' },
+  'gemini-3.1': { provider: 'google', modelId: 'gemini-3-pro-preview', name: 'Gemini 3' },
+  'gemini-pro': { provider: 'google', modelId: 'gemini-2.5-pro', name: 'Gemini Pro' },
 } as const;
 
 type ModelKey = keyof typeof MODELS;
@@ -130,17 +115,29 @@ function getModel(modelKey: string) {
   const modelConfig = MODELS[modelKey as ModelKey] || MODELS['claude-4.5'];
   const keys = checkApiKeys();
   
-  console.log('API Keys available:', keys);
-  console.log('Requested provider:', modelConfig.provider);
+  // Log which model and API key status
+  console.log('getModel:', { 
+    modelKey, 
+    provider: modelConfig.provider, 
+    modelId: modelConfig.modelId,
+    hasAnthropicKey: keys.anthropic,
+    hasOpenAIKey: keys.openai,
+    hasGoogleKey: keys.google
+  });
   
   // Check if the required API key exists
+  if (modelConfig.provider === 'anthropic' && !keys.anthropic) {
+    console.warn('Anthropic API key missing, falling back to OpenAI if available');
+    if (keys.openai) return openai('gpt-4o');
+    throw new Error('No AI API keys configured');
+  }
   if (modelConfig.provider === 'openai' && !keys.openai) {
-    console.warn('OpenAI API key not found, falling back to Claude');
-    return anthropic('claude-sonnet-4-5');
+    console.warn('OpenAI API key missing, falling back to Anthropic');
+    return anthropic('claude-sonnet-4-20250514');
   }
   if (modelConfig.provider === 'google' && !keys.google) {
-    console.warn('Google API key not found, falling back to Claude');
-    return anthropic('claude-sonnet-4-5');
+    console.warn('Google API key missing, falling back to Anthropic');
+    return anthropic('claude-sonnet-4-20250514');
   }
   
   switch (modelConfig.provider) {
@@ -151,7 +148,7 @@ function getModel(modelKey: string) {
     case 'google':
       return google(modelConfig.modelId);
     default:
-      return anthropic('claude-sonnet-4-5');
+      return anthropic('claude-sonnet-4-20250514');
   }
 }
 
@@ -186,7 +183,6 @@ async function uploadPDFToStorage(
       return null;
     }
     
-    console.log('PDF uploaded to storage:', filePath);
     return filePath;
   } catch (error) {
     console.error('Error uploading PDF:', error);
@@ -212,13 +208,6 @@ export async function POST(req: NextRequest) {
       mcpServerIds = [] as string[]
     } = body;
 
-    // Log for debugging - full body
-    console.log('=== CHAT API DEBUG ===');
-    console.log('Full body received:', JSON.stringify(body, null, 2));
-    console.log('Model from body:', model);
-    console.log('useWebSearch:', useWebSearch);
-    console.log('useDeepResearch:', useDeepResearch);
-    console.log('========================');
 
     // Validate brand access (in production, verify user has access to this brand)
     if (!brandId) {
@@ -238,9 +227,6 @@ export async function POST(req: NextRequest) {
 
     // Fetch project files context if projectId is provided
     let projectContext = '';
-    console.log('=== PROJECT FILES DEBUG ===');
-    console.log('projectId received:', projectId);
-    
     if (projectId) {
       try {
         const supabase = getSupabaseClient();
@@ -251,14 +237,6 @@ export async function POST(req: NextRequest) {
           .select('id, name, status, file_type, extracted_text')
           .eq('project_id', projectId);
         
-        console.log('ALL files for project:', allFiles?.map(f => ({ 
-          id: f.id,
-          name: f.name, 
-          status: f.status, 
-          hasExtractedText: !!f.extracted_text,
-          textLength: f.extracted_text?.length || 0
-        })));
-        
         // Now fetch only ready files with extracted text
         const { data: projectFiles, error: filesError } = await supabase
           .from('project_files')
@@ -267,11 +245,6 @@ export async function POST(req: NextRequest) {
           .eq('status', 'ready')
           .not('extracted_text', 'is', null);
 
-        console.log('Ready files with text:', { 
-          count: projectFiles?.length || 0, 
-          files: projectFiles?.map(f => ({ name: f.name, status: f.status, hasText: !!f.extracted_text, textLength: f.extracted_text?.length })),
-          error: filesError 
-        });
 
         if (projectFiles && projectFiles.length > 0) {
           projectContext = '\n\n=== PROJECT CONTEXT FILES ===\n';
@@ -294,7 +267,7 @@ export async function POST(req: NextRequest) {
           projectContext += 'Use the above project files as context when answering questions. Reference specific files when relevant.\n';
         }
       } catch (error) {
-        console.error('Failed to fetch project files:', error);
+        // Silent fail
       }
     }
 
@@ -313,7 +286,7 @@ export async function POST(req: NextRequest) {
           styleInstruction = STYLE_INSTRUCTIONS[conversation.style_preset] || '';
         }
       } catch (error) {
-        console.error('Failed to fetch conversation style:', error);
+        // Silent fail
       }
     }
 
@@ -328,11 +301,7 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
     const finalSystemPrompt = systemPrompt ? `${systemPrompt}${projectContext}${styleInstruction}` : `${defaultSystemPrompt}${styleInstruction}`;
 
     // Get the AI model based on the model key
-    console.log('=== API MODEL DEBUG ===');
-    console.log('Model received:', model);
-    console.log('Model config:', MODELS[model as ModelKey]);
     const aiModel = getModel(model);
-    console.log('AI Model created:', aiModel);
 
     // Extract content from messages - handle both old format (content) and new format (parts)
     // Using for...of loop to support async PDF extraction
@@ -375,7 +344,6 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
             if (imageData.startsWith('data:')) {
               imageData = imageData.split(',')[1]; // Get just the base64 part
             }
-            console.log('Adding image attachment:', attachment.name, 'mimeType:', attachment.mimeType, 'data length:', imageData.length);
             
             // Convert base64 to Uint8Array for AI SDK (Edge-compatible)
             const binaryString = Buffer.from(imageData, 'base64');
@@ -401,12 +369,11 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
                 pdfData = pdfData.split(',')[1]; // Get just the base64 part
               }
               
-              console.log('Sending PDF directly to LLM:', attachment.name, 'size:', pdfData.length);
               
               // Upload to Supabase Storage for persistence (non-blocking)
               if (conversationId && brandId) {
                 uploadPDFToStorage(brandId, conversationId, attachment.name, attachment.data)
-                  .catch(err => console.error('Background PDF upload failed:', err));
+                  .catch(() => {});
               }
               
               // Send PDF as file attachment to LLM (native PDF reading)
@@ -445,21 +412,6 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
       }
     }
 
-    console.log('=== ATTACHMENT DEBUG ===');
-    console.log('Attachments received:', attachments?.length || 0);
-    if (attachments && attachments.length > 0) {
-      console.log('First attachment:', {
-        type: attachments[0].type,
-        name: attachments[0].name,
-        mimeType: attachments[0].mimeType,
-        dataLength: attachments[0].data?.length || 0,
-        dataStart: attachments[0].data?.substring(0, 50),
-      });
-    }
-    console.log('Messages count:', messages?.length);
-    console.log('Last message role:', messages?.[messages.length - 1]?.role);
-    console.log('Normalized messages (first 1000 chars):', JSON.stringify(normalizedMessages, null, 2).slice(0, 1000));
-    console.log('=== END DEBUG ===');
 
     // Get MCP tools only if the user has explicitly selected specific servers
     // If no servers selected, don't include any MCP tools (user must opt-in)
@@ -468,11 +420,6 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
       : { tools: {}, cleanup: async () => {} };
     const hasMCPTools = Object.keys(mcpTools).length > 0;
 
-    if (hasMCPTools) {
-      console.log('=== MCP TOOLS DEBUG ===');
-      console.log('Available MCP tools:', Object.keys(mcpTools));
-      console.log('=== END MCP DEBUG ===');
-    }
 
     try {
       // Build streamText options
@@ -500,7 +447,6 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
             'anthropic-beta': 'interleaved-thinking-2025-05-14',
           };
           streamOptions.maxOutputTokens = 16000; // Increase for reasoning + response
-          console.log('Deep research enabled via Claude extended thinking');
         } else if (modelConfig.provider === 'google') {
           // Gemini's thinking mode
           streamOptions.providerOptions = {
@@ -512,14 +458,12 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
             },
           };
           streamOptions.maxOutputTokens = 16000;
-          console.log('Deep research enabled via Gemini thinking mode');
         } else if (modelConfig.provider === 'openai') {
           // OpenAI doesn't have extended thinking in the same way
           // Use higher temperature and more verbose system prompt instead
           streamOptions.temperature = 0.8;
           streamOptions.maxOutputTokens = 8000;
           streamOptions.system = `${finalSystemPrompt}\n\nIMPORTANT: You are in deep research mode. Think through problems step-by-step, consider multiple perspectives, and provide comprehensive, well-reasoned answers. Break down complex topics and explore implications thoroughly.`;
-          console.log('Deep research enabled via enhanced prompting for OpenAI');
         }
       }
 
@@ -527,11 +471,7 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
       const tools: Record<string, unknown> = { ...(hasMCPTools ? mcpTools : {}) };
 
       // Optional Web Search via native provider tools (OpenAI and Gemini only)
-      console.log('=== WEB SEARCH DEBUG ===');
-      console.log('useWebSearch value:', useWebSearch);
-      console.log('model:', model);
       const modelConfig = MODELS[model as ModelKey] || MODELS['claude-4.5'];
-      console.log('modelConfig:', modelConfig);
       
       if (useWebSearch) {
         if (modelConfig.provider === 'openai') {
@@ -539,20 +479,12 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
           tools.web_search = openai.tools.webSearch({
             searchContextSize: 'high',
           });
-          console.log('Web search enabled via OpenAI built-in tool');
         } else if (modelConfig.provider === 'google') {
           // Gemini's native Google Search grounding
           tools.google_search = google.tools.googleSearch({});
-          console.log('Web search enabled via Gemini Google Search grounding');
-          console.log('google_search tool added:', !!tools.google_search);
           // Add instruction to use search
           streamOptions.system = `${streamOptions.system || finalSystemPrompt}\n\nIMPORTANT: You have access to Google Search. When the user asks for current information, news, facts, or anything that would benefit from real-time web data, USE the google_search tool to find accurate, up-to-date information. Always search before answering questions about current events, recent news, or factual queries.`;
-        } else {
-          // Claude doesn't have native web search
-          console.warn(`Web search requested but model provider is ${modelConfig.provider}. Web search only available with OpenAI and Gemini models.`);
         }
-      } else {
-        console.log('Web search NOT enabled - useWebSearch is falsy');
       }
 
       const hasTools = Object.keys(tools).length > 0;
@@ -561,55 +493,81 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
         streamOptions.stopWhen = stepCountIs(5);
         streamOptions.toolChoice = 'auto';
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        streamOptions.onStepFinish = ({ text, toolCalls, toolResults, finishReason }: any) => {
-          console.log('=== STEP FINISHED ===');
-          console.log('Text length:', text?.length || 0);
-          console.log('Tool calls:', toolCalls?.length || 0);
-          console.log('Tool results:', toolResults?.length || 0);
-          console.log('Finish reason:', finishReason);
-          if (text) console.log('Text preview:', text.slice(0, 100) + '...');
-        };
       }
 
-      const result = streamText(streamOptions);
+      // Validate we have messages to send
+      if (normalizedMessages.length === 0) {
+        console.error('Chat API: No messages to send. Original:', JSON.stringify(messages.slice(-3)));
+        return new Response(
+          JSON.stringify({ error: 'No valid messages to process' }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log('Chat API: Sending', normalizedMessages.length, 'messages to', model);
+      
+      let result;
+      try {
+        result = streamText(streamOptions);
+      } catch (initError) {
+        console.error('Chat API: Failed to initialize streamText:', initError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to initialize AI model', details: initError instanceof Error ? initError.message : 'Unknown error' }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
 
       // Create a custom stream that includes tool call markers (for any tools)
       if (hasTools) {
         const encoder = new TextEncoder();
         let toolCallsSent = new Set<string>();
+        let toolStreamChunks = 0;
         
         const customStream = new ReadableStream({
           async start(controller) {
             // Track tool calls via onChunk equivalent
-            for await (const part of result.fullStream) {
-              if (part.type === 'tool-call') {
-                const toolCallId = part.toolCallId;
-                if (!toolCallsSent.has(toolCallId)) {
-                  toolCallsSent.add(toolCallId);
-                  // Send tool call marker
-                  controller.enqueue(encoder.encode(`\n[TOOL_CALL:${part.toolName}]\n`));
-                }
-              } else if (part.type === 'tool-result') {
-                // Send tool result marker
-                controller.enqueue(encoder.encode(`\n[TOOL_RESULT:${part.toolName}]\n`));
-                // If webSearch, append simple sources list
-                try {
-                  // @ts-expect-error runtime chunk shape
-                  const out = part?.result || part?.output || part;
-                  const sources = out?.results;
-                  if (Array.isArray(sources) && sources.length > 0) {
-                    const lines = sources
-                      .slice(0, 5)
-                      .map((r: any, i: number) => `${i + 1}. ${r.title} - ${r.url}`)
-                      .join('\n');
-                    controller.enqueue(encoder.encode(`\n\nSources:\n${lines}\n`));
+            try {
+              for await (const part of result.fullStream) {
+                toolStreamChunks++;
+                if (part.type === 'tool-call') {
+                  const toolCallId = part.toolCallId;
+                  if (!toolCallsSent.has(toolCallId)) {
+                    toolCallsSent.add(toolCallId);
+                    // Send tool call marker
+                    controller.enqueue(encoder.encode(`\n[TOOL_CALL:${part.toolName}]\n`));
                   }
-                } catch {
-                  // ignore
+                } else if (part.type === 'tool-result') {
+                  // Send tool result marker
+                  controller.enqueue(encoder.encode(`\n[TOOL_RESULT:${part.toolName}]\n`));
+                  // If webSearch, append simple sources list
+                  try {
+                    // @ts-expect-error runtime chunk shape
+                    const out = part?.result || part?.output || part;
+                    const sources = out?.results;
+                    if (Array.isArray(sources) && sources.length > 0) {
+                      const lines = sources
+                        .slice(0, 5)
+                        .map((r: any, i: number) => `${i + 1}. ${r.title} - ${r.url}`)
+                        .join('\n');
+                      controller.enqueue(encoder.encode(`\n\nSources:\n${lines}\n`));
+                    }
+                  } catch {
+                    // ignore
+                  }
+                } else if (part.type === 'text-delta') {
+                  controller.enqueue(encoder.encode(part.text));
                 }
-              } else if (part.type === 'text-delta') {
-                controller.enqueue(encoder.encode(part.text));
               }
+              // Log stream completion
+              if (toolStreamChunks === 0) {
+                console.warn('Chat API (tools): Stream completed with 0 chunks');
+              } else {
+                console.log('Chat API (tools): Stream completed with', toolStreamChunks, 'chunks');
+              }
+            } catch (streamError) {
+              console.error('Chat API (tools): Stream error:', streamError);
+              const errorMsg = streamError instanceof Error ? streamError.message : 'Unknown stream error';
+              controller.enqueue(encoder.encode(`\n\n⚠️ Error: ${errorMsg}`));
             }
             controller.close();
             
@@ -642,7 +600,26 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
       }
 
       // Return streaming response
-      return result.toTextStreamResponse();
+      const encoder = new TextEncoder();
+      const textStream = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const chunk of result.textStream) {
+              controller.enqueue(encoder.encode(chunk));
+            }
+            controller.close();
+          } catch (streamError) {
+            console.error('Stream error:', streamError);
+            const errorMsg = streamError instanceof Error ? streamError.message : 'Unknown error';
+            controller.enqueue(encoder.encode(`\n\n⚠️ Error: ${errorMsg}`));
+            controller.close();
+          }
+        }
+      });
+      
+      return new Response(textStream, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
     } catch (innerError) {
       // Ensure cleanup on any error within the inner try block
       await cleanupMCP().catch(err => {

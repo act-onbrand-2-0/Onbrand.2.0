@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ChatContainer } from '@/components/chat/chat-container';
-import { type ModelId, type Attachment } from '@/components/chat/chat-input';
+import { type ModelId, type Attachment, hasAIMention } from '@/components/chat/chat-input';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 // Helper to convert file to base64
@@ -154,6 +154,13 @@ export default function ChatPage() {
     metadata?: { type?: string; user_name?: string };
   }
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
+  const aiMessagesRef = useRef<ChatMessage[]>([]);
+  
+  // Keep aiMessages ref in sync - critical for avoiding race conditions
+  useEffect(() => {
+    aiMessagesRef.current = aiMessages;
+  }, [aiMessages]);
+  
   const [isCollaborativeChat, setIsCollaborativeChat] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [typingUsers, setTypingUsers] = useState<{userId: string; userName: string}[]>([]);
@@ -171,9 +178,6 @@ export default function ChatPage() {
 
   // Custom sendMessage that actually works
   const sendMessage = useCallback(async (text: string, attachments?: Attachment[], options?: { useWebSearch?: boolean; useDeepResearch?: boolean; mcpServerIds?: string[] }) => {
-    console.log('=== SENDING MESSAGE ===');
-    console.log('Using model:', selectedModel);
-    console.log('Attachments:', attachments?.length || 0);
     
     // Build attachment display info for UI - convert to base64 for persistence
     const attachmentDisplayInfo: MessageAttachmentDisplay[] = [];
@@ -206,7 +210,6 @@ export default function ChatPage() {
       sender_email: userEmail || undefined,
       is_current_user: true,
     };
-    console.log('userMsg with attachments:', userMsg.attachments?.length, userMsg.attachments?.map(a => ({ name: a.name, previewLength: a.preview?.length })));
     setAiMessages(prev => [...prev, userMsg]);
     setStreamingContent('');
     setIsStreaming(true);
@@ -258,11 +261,21 @@ export default function ChatPage() {
         }
       }
       
-      // Get current messages for API call
-      const currentMessages = [...aiMessages, userMsg].map(m => ({ role: m.role, content: m.content }));
+      // Build messages for API - use state directly
+      const currentMessages = [...aiMessages, userMsg]
+        .map(m => ({ role: m.role, content: m.content || '' }))
+        .filter(m => m.content.trim()); // Only filter truly empty messages
+      
+      // For shared conversations, use the conversation's brand_id (not the user's brand)
+      const effectiveBrandId = conversationRef.current?.brand_id || brandIdRef.current;
+      
+      if (!effectiveBrandId) {
+        throw new Error('Brand context not available. Please refresh the page.');
+      }
+      
       
       const apiBody = {
-        brandId: brandIdRef.current,
+        brandId: effectiveBrandId,
         conversationId: conversationRef.current?.id,
         projectId: projectIdRef.current || conversationRef.current?.project_id,
         model: selectedModel,
@@ -274,12 +287,6 @@ export default function ChatPage() {
         mcpServerIds: options?.mcpServerIds && options.mcpServerIds.length > 0 ? options.mcpServerIds : undefined,
       };
       
-      console.log('=== CHAT API REQUEST ===');
-      console.log('projectIdRef.current:', projectIdRef.current);
-      console.log('conversationRef.current?.project_id:', conversationRef.current?.project_id);
-      console.log('Final projectId being sent:', apiBody.projectId);
-      console.log('useWebSearch being sent:', apiBody.useWebSearch);
-      console.log('options received:', options);
       
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -305,6 +312,7 @@ export default function ChatPage() {
         throw new Error(errorMessage);
       }
       
+      
       if (!response.body) {
         throw new Error('No response body');
       }
@@ -312,30 +320,29 @@ export default function ChatPage() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let fullContent = '';
-      
-      console.log('=== STARTING STREAM READ ===');
+      let chunkCount = 0;
       
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          console.log('Stream done, fullContent length:', fullContent.length);
+          if (fullContent.length === 0) {
+            fullContent = '⚠️ The AI model returned an empty response. This may be a temporary issue - please try again.';
+          }
           break;
         }
         
+        chunkCount++;
         const chunk = decoder.decode(value, { stream: true });
-        console.log('Received chunk:', chunk.length, 'bytes');
         
         // Check for tool markers in the chunk
         if (chunk.includes('[TOOL_CALL:')) {
           const match = chunk.match(/\[TOOL_CALL:([^\]]+)\]/);
           if (match) {
             setActiveToolCall(match[1]);
-            console.log('Tool call detected:', match[1]);
           }
         }
         if (chunk.includes('[TOOL_RESULT:')) {
           setActiveToolCall(null);
-          console.log('Tool result received');
         }
         
         fullContent += chunk;
@@ -346,9 +353,6 @@ export default function ChatPage() {
         setStreamingContent(displayContent);
       }
       
-      console.log('=== STREAM COMPLETE ===');
-      console.log('Full content:', fullContent.slice(0, 200) + '...');
-      
       // Clean tool markers from final content
       const cleanContent = fullContent
         .replace(/\n?\[TOOL_CALL:[^\]]+\]\n?/g, '')
@@ -356,25 +360,30 @@ export default function ChatPage() {
       
       // Add assistant message after streaming completes
       if (cleanContent) {
+        // Generate ID once and use for both local state and DB
+        // This prevents duplicate messages from real-time subscription
+        const messageId = crypto.randomUUID();
+        
         // Clear streaming content FIRST to avoid visual jump, then add message
         setStreamingContent('');
         setActiveToolCall(null);
-        setAiMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: cleanContent }]);
+        setAiMessages(prev => [...prev, { id: messageId, role: 'assistant', content: cleanContent }]);
         
-        // Save to DB in background (don't await to avoid UI delay)
+        // Save to DB in background with the SAME ID (don't await to avoid UI delay)
         if (conversationRef.current) {
           const convId = conversationRef.current.id;
-          // Fire and forget - save in background
+          // Fire and forget - save in background with same ID
           saveMessageToDb({
             conversation_id: convId,
             role: 'assistant',
             content: fullContent,
+            id: messageId, // Use same ID to prevent duplicate from real-time
           }).then(() => {
             supabase
               .from('conversations')
               .update({ last_message_at: new Date().toISOString() })
               .eq('id', convId);
-          }).catch(err => console.error('Failed to save message:', err));
+          }).catch(() => {});
         }
       }
     } catch (err) {
@@ -388,32 +397,35 @@ export default function ChatPage() {
               .replace(/\n?\[TOOL_RESULT:[^\]]+\]\n?/g, '');
             const stoppedContent = cleanPartial + '\n\n*(Generation stopped)*';
             
+            // Generate ID once for both local state and DB
+            const messageId = crypto.randomUUID();
+            
             // Add partial response as a message with indicator
             setAiMessages(messages => [...messages, { 
-              id: crypto.randomUUID(), 
+              id: messageId, 
               role: 'assistant', 
               content: stoppedContent
             }]);
             
-            // Save partial response to database
+            // Save partial response to database with same ID
             if (conversationRef.current) {
               const convId = conversationRef.current.id;
               saveMessageToDb({
                 conversation_id: convId,
                 role: 'assistant',
                 content: stoppedContent,
+                id: messageId, // Use same ID to prevent duplicate
               }).then(() => {
                 supabase
                   .from('conversations')
                   .update({ last_message_at: new Date().toISOString() })
                   .eq('id', convId);
-              }).catch(err => console.error('Failed to save partial message:', err));
+              }).catch(() => {});
             }
           }
           return ''; // Clear streaming content
         });
       } else {
-        console.error('Chat error:', err);
         // Show error as assistant message
         const errorMessage = (err as Error).message || 'An error occurred while processing your request.';
         setAiMessages(prev => [...prev, { 
@@ -536,11 +548,10 @@ export default function ChatPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ shareId: pendingShare.id, action: 'accept' }),
               });
-              console.log('Share accepted in chat page');
             }
           }
         } catch (err) {
-          console.error('Error checking/accepting share:', err);
+          // Silent fail for share check
         }
       }
       
@@ -563,10 +574,9 @@ export default function ChatPage() {
             ...c,
             _isDirectlyShared: true // Flag for read-only access
           }));
-          console.log('Fetched shared conversations:', sharedConversations.length);
         }
       } catch (err) {
-        console.error('Error fetching shared conversations:', err);
+        // Silent fail
       }
 
       // Auto-accept pending project shares before fetching
@@ -581,11 +591,10 @@ export default function ChatPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ shareId: share.id, action: 'accept' }),
             });
-            console.log('Project share accepted:', share.id);
           }
         }
       } catch (err) {
-        console.error('Error auto-accepting project shares:', err);
+        // Silent fail
       }
 
       // Fetch shared projects and their conversations
@@ -601,8 +610,6 @@ export default function ChatPage() {
             ...c,
             _isFromSharedProject: true // Flag for collaborative access
           }));
-          console.log('Fetched shared projects:', sharedProjects.length);
-          console.log('Fetched shared project conversations:', sharedProjectConversations.length);
           // Store shared projects in state
           setProjects(prev => {
             const ownedIds = new Set(prev.map(p => p.id));
@@ -611,7 +618,7 @@ export default function ChatPage() {
           });
         }
       } catch (err) {
-        console.error('Error fetching shared projects:', err);
+        // Silent fail
       }
 
       if (!error && data) {
@@ -643,13 +650,10 @@ export default function ChatPage() {
                   // Add to conversations list for sidebar display
                   setConversations(prev => [sharedConv, ...prev.filter(c => c.id !== sharedConv.id)]);
                   router.replace('/chat', { scroll: false });
-                  console.log('Shared conversation loaded via API');
                 }
-              } else {
-                console.error('Failed to fetch shared conversation:', await response.text());
               }
             } catch (err) {
-              console.error('Error fetching shared conversation:', err);
+              // Silent fail
             }
           }
         }
@@ -755,10 +759,7 @@ export default function ChatPage() {
         }
       }
 
-      if (error) {
-        console.error('Failed to fetch messages:', error.message);
-        return;
-      }
+      if (error) return;
       
       if (data) {
         setDbMessages(data);
@@ -810,25 +811,21 @@ export default function ChatPage() {
           filter: `conversation_id=eq.${currentConversation.id}`,
         },
         async (payload) => {
-          console.log('Conversation shares changed:', payload);
           // Re-check if conversation is now collaborative
           try {
             const response = await fetch(`/api/collaborative-messages?conversationId=${currentConversation.id}`);
             if (response.ok) {
               const result = await response.json();
               if (result.isCollaborative !== isCollaborativeChat) {
-                console.log('Collaborative status changed to:', result.isCollaborative);
                 setIsCollaborativeChat(result.isCollaborative);
               }
             }
           } catch (err) {
-            console.error('Failed to check collaborative status:', err);
+            // Silent fail
           }
         }
       )
-      .subscribe((status) => {
-        console.log('Shares subscription status:', status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(sharesChannel);
@@ -841,24 +838,16 @@ export default function ChatPage() {
     if (!currentConversation || !userId) return;
     
     const isOwner = currentConversation.user_id === userId;
-    console.log('Setting up real-time channel for chat:', currentConversation.id, 'isOwner:', isOwner);
     
     const handleNewMessage = async (payload: any) => {
       const newMessage = payload.new || payload;
-      console.log('Real-time message received:', newMessage);
-      console.log('User ID comparison - message.user_id:', newMessage.user_id, 'current userId:', userId, 'match:', newMessage.user_id === userId);
 
-      // Skip if this message is from the current user (we already added it locally)
-      // Also skip if user_id is null/undefined (assistant messages) - those sync via DB fetch
-      if (newMessage.user_id && newMessage.user_id === userId) {
-        console.log('Skipping own message - user_id matches:', newMessage.user_id);
+      // Skip messages from current user - we already add them locally
+      // This prevents duplicates when saveMessageToDb broadcasts
+      if (newMessage.user_id === userId) {
         return;
       }
       
-      // For user messages from others, we should see them
-      if (newMessage.role === 'user' && newMessage.user_id && newMessage.user_id !== userId) {
-        console.log('Received message from other user:', newMessage.user_id, 'content:', newMessage.content?.substring(0, 50));
-      }
 
       // Fetch sender info for the new message
       let senderName = 'User';
@@ -873,7 +862,7 @@ export default function ChatPage() {
             senderEmail = userData.email || '';
           }
         } catch (err) {
-          console.error('Failed to fetch sender info:', err);
+          // Silent fail
         }
       } else if (newMessage.role === 'assistant') {
         senderName = 'Assistant';
@@ -893,13 +882,8 @@ export default function ChatPage() {
         metadata: newMessage.metadata,
       };
 
-      console.log('Adding real-time message to chat:', enrichedMessage);
       setAiMessages(current => {
-        // Check for duplicates using current state
-        if (current.some(m => m.id === newMessage.id)) {
-          console.log('Skipping duplicate - already in state');
-          return current;
-        }
+        if (current.some(m => m.id === newMessage.id)) return current;
         return [...current, enrichedMessage];
       });
       
@@ -915,8 +899,6 @@ export default function ChatPage() {
       
       // Ignore own typing events
       if (typingUserId === userId) return;
-      
-      console.log('Typing event received:', typingUserId, typingUserName, isTyping);
       
       setTypingUsers(current => {
         if (isTyping) {
@@ -950,7 +932,6 @@ export default function ChatPage() {
       )
       // Listen for broadcast messages (backup sync method - doesn't need RLS)
       .on('broadcast', { event: 'new_message' }, (payload: any) => {
-        console.log('Broadcast new_message received:', payload);
         if (payload.payload) {
           handleNewMessage(payload.payload);
         }
@@ -962,7 +943,6 @@ export default function ChatPage() {
         }
       })
       .subscribe((status: string) => {
-        console.log('Chat room subscription status:', status);
         if (status === 'SUBSCRIBED') {
           // Store channel reference for broadcasting messages
           chatChannelRef.current = channel;
@@ -973,17 +953,15 @@ export default function ChatPage() {
               .then(res => res.ok ? res.json() : null)
               .then(result => {
                 if (result?.isCollaborative) {
-                  console.log('Detected collaborative mode');
                   setIsCollaborativeChat(true);
                 }
               })
-              .catch(err => console.error('Failed to check collaborative status:', err));
+              .catch(() => {});
           }
         }
       });
 
     return () => {
-      console.log('Cleaning up chat room subscription');
       chatChannelRef.current = null;
       supabase.removeChannel(channel);
     };
@@ -1009,7 +987,7 @@ export default function ChatPage() {
         userName: userName || 'User',
         isTyping
       }
-    }).catch(err => console.error('Failed to broadcast typing:', err));
+    }).catch(() => {});
   }, [currentConversation?.id, userId, userName]);
 
   // Handle input change to broadcast typing
@@ -1095,10 +1073,7 @@ export default function ChatPage() {
           .select()
           .single();
 
-        if (error) {
-          console.error('Failed to create conversation from dashboard:', error);
-          return;
-        }
+        if (error) return;
 
         if (newConversation) {
           // Set the conversation
@@ -1132,6 +1107,7 @@ export default function ChatPage() {
     role: string;
     content: string;
     user_id?: string; // For collaborative chats - track who sent the message
+    id?: string; // Optional pre-generated ID to prevent duplicates from real-time
   }) => {
     const model = currentConversation?.model || 'claude-3-sonnet';
     const messageUserId = message.role === 'user' ? (message.user_id || userId) : null;
@@ -1139,7 +1115,10 @@ export default function ChatPage() {
     const { data, error } = await supabase
       .from('messages')
       .insert({
-        ...message,
+        ...(message.id ? { id: message.id } : {}), // Use provided ID if given
+        conversation_id: message.conversation_id,
+        role: message.role,
+        content: message.content,
         tokens_used: 0,
         model,
         metadata: {},
@@ -1149,25 +1128,12 @@ export default function ChatPage() {
       .select()
       .single();
 
-    if (error) {
-      console.error('❌ CRITICAL: Failed to save message to DB!');
-      console.error('Error:', error.message);
-      console.error('Details:', error.details);
-      console.error('Hint:', error.hint);
-      console.error('Code:', error.code);
-      console.error('Message data:', { conversation_id: message.conversation_id, role: message.role, user_id: messageUserId });
-      // This is likely an RLS issue - the user might not have INSERT permission
-    } else {
-      console.log('✅ Message saved to DB successfully:', data?.id);
-    }
     
     if (!error && data) {
       setDbMessages((prev) => [...prev, data]);
       
       // Broadcast the message for immediate real-time delivery to other users
       // Try multiple methods to ensure broadcast works
-      console.log('Attempting to broadcast message, chatChannelRef.current:', !!chatChannelRef.current, 'conversation_id:', message.conversation_id);
-      
       if (chatChannelRef.current) {
         try {
           await chatChannelRef.current.send({
@@ -1179,9 +1145,7 @@ export default function ChatPage() {
               sender_email: message.role === 'user' ? userEmail : null,
             }
           });
-          console.log('Message broadcasted via subscribed channel successfully');
         } catch (err) {
-          console.error('Failed to broadcast via ref, trying direct channel:', err);
           // Fallback: try creating a new channel connection
           try {
             const fallbackChannel = supabase.channel(`chat-room-${message.conversation_id}`);
@@ -1194,13 +1158,11 @@ export default function ChatPage() {
                 sender_email: message.role === 'user' ? userEmail : null,
               }
             });
-            console.log('Message broadcasted via fallback channel');
           } catch (fallbackErr) {
-            console.error('Fallback broadcast also failed:', fallbackErr);
+            // Silent fail
           }
         }
       } else {
-        console.log('No chat channel ref - trying direct channel');
         // Try creating a channel and sending directly
         try {
           const directChannel = supabase.channel(`chat-room-${message.conversation_id}`);
@@ -1213,9 +1175,8 @@ export default function ChatPage() {
               sender_email: message.role === 'user' ? userEmail : null,
             }
           });
-          console.log('Message broadcasted via direct channel');
         } catch (err) {
-          console.error('Direct channel broadcast failed:', err);
+          // Silent fail
         }
       }
     }
@@ -1225,7 +1186,6 @@ export default function ChatPage() {
 
   // Create new conversation - clears current chat and shows empty state
   const handleNewChat = useCallback((projectId?: string, initialMessage?: string) => {
-    console.log('New Chat clicked - clearing state, projectId:', projectId, 'initialMessage:', initialMessage);
     setCurrentConversation(null);
     setDbMessages([]);
     setAiMessages([]);
@@ -1272,7 +1232,6 @@ export default function ChatPage() {
 
   // Delete conversation
   const handleDeleteConversation = useCallback(async (conversationId: string) => {
-    console.log('Deleting conversation:', conversationId);
     
     // First delete all messages for this conversation
     const { error: msgError } = await supabase
@@ -1280,9 +1239,6 @@ export default function ChatPage() {
       .delete()
       .eq('conversation_id', conversationId);
 
-    if (msgError) {
-      console.error('Failed to delete messages:', msgError.message);
-    }
 
     // Then delete the conversation
     const { error } = await supabase
@@ -1291,12 +1247,9 @@ export default function ChatPage() {
       .eq('id', conversationId);
 
     if (error) {
-      console.error('Failed to delete conversation:', error.message, error.details, error.hint);
       alert(`Failed to delete: ${error.message}`);
       return;
     }
-
-    console.log('Delete successful for conversation:', conversationId);
     setConversations((prev) => prev.filter((c) => c.id !== conversationId));
     if (currentConversation?.id === conversationId) {
       setCurrentConversation(null);
@@ -1307,7 +1260,6 @@ export default function ChatPage() {
 
   // Rename conversation
   const handleRenameConversation = useCallback(async (conversationId: string, newTitle: string) => {
-    console.log('Renaming conversation:', conversationId, 'to:', newTitle);
     
     const { error } = await supabase
       .from('conversations')
@@ -1315,7 +1267,6 @@ export default function ChatPage() {
       .eq('id', conversationId);
 
     if (error) {
-      console.error('Failed to rename conversation:', error.message);
       alert(`Failed to rename: ${error.message}`);
       return;
     }
@@ -1411,7 +1362,6 @@ export default function ChatPage() {
       .update({ project_id: projectId })
       .eq('id', currentConversation.id);
     if (error) {
-      console.error('Failed to move conversation to project:', error.message);
       alert(`Failed to move conversation: ${error.message}`);
       return;
     }
@@ -1431,10 +1381,7 @@ export default function ChatPage() {
         .update({ project_id: null })
         .eq('id', currentConversation.id)
         .then(({ error }) => {
-          if (error) {
-            console.error('Failed to clear project:', error.message);
-            return;
-          }
+          if (error) return;
           // Update local state
           setCurrentConversation(prev => prev ? { ...prev, project_id: null } : prev);
           setConversations(prev => prev.map(c => c.id === currentConversation.id ? { ...c, project_id: null } : c));
@@ -1454,10 +1401,7 @@ export default function ChatPage() {
       .update({ style_preset: style })
       .eq('id', currentConversation.id);
     
-    if (error) {
-      console.error('Failed to update style:', error.message);
-      return;
-    }
+    if (error) return;
     
     // Update local state
     setCurrentConversation(prev => prev ? { ...prev, style_preset: style } : prev);
@@ -1483,7 +1427,6 @@ export default function ChatPage() {
       .single();
 
     if (error) {
-      console.error('Failed to create project:', error.message);
       alert(`Failed to create project: ${error.message}`);
       return undefined;
     }
@@ -1510,7 +1453,6 @@ export default function ChatPage() {
       .eq('id', projectId);
 
     if (error) {
-      console.error('Failed to delete project:', error.message);
       alert(`Failed to delete project: ${error.message}`);
       return;
     }
@@ -1528,7 +1470,6 @@ export default function ChatPage() {
       .eq('id', projectId);
 
     if (error) {
-      console.error('Failed to rename project:', error.message);
       alert(`Failed to rename project: ${error.message}`);
       return;
     }
@@ -1569,17 +1510,6 @@ export default function ChatPage() {
     fetchProjectFiles();
   }, [brandId, userId, projects, supabase]);
   
-  // Debug: Log all project files mapping
-  useEffect(() => {
-    console.log('=== PROJECT FILES STATE ===');
-    console.log('Projects:', projects.map(p => ({ id: p.id, name: p.name })));
-    console.log('Project Files mapping:', Object.entries(projectFiles).map(([pid, files]) => ({
-      projectId: pid,
-      projectName: projects.find(p => p.id === pid)?.name || 'Unknown',
-      files: files.map(f => ({ id: f.id, name: f.name, status: f.status }))
-    })));
-    console.log('Current Project ID:', currentProjectId);
-  }, [projects, projectFiles, currentProjectId]);
 
   // File upload handler
   const handleUploadFile = useCallback(async (projectId: string, file: File) => {
@@ -1592,7 +1522,6 @@ export default function ChatPage() {
       .upload(filePath, file);
 
     if (uploadError) {
-      console.error('Failed to upload file:', uploadError.message);
       alert(`Failed to upload file: ${uploadError.message}`);
       return;
     }
@@ -1614,15 +1543,11 @@ export default function ChatPage() {
       .single();
 
     if (error) {
-      console.error('Failed to create file record:', error.message);
       alert(`Failed to create file record: ${error.message}`);
       return;
     }
 
     if (data) {
-      console.log('=== FILE UPLOAD SUCCESS ===');
-      console.log('File uploaded to project_id:', projectId);
-      console.log('File record created:', { id: data.id, name: data.name, project_id: data.project_id });
       
       setProjectFiles((prev) => ({
         ...prev,
@@ -1631,12 +1556,8 @@ export default function ChatPage() {
 
       // Trigger file processing in the background
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      console.log('=== FILE PROCESSING DEBUG ===');
-      console.log('Triggering Edge Function for file:', data.id);
-      console.log('Supabase URL:', supabaseUrl);
       
       const session = await supabase.auth.getSession();
-      console.log('Has auth session:', !!session.data.session);
       
       fetch(`${supabaseUrl}/functions/v1/process-project-file`, {
         method: 'POST',
@@ -1646,10 +1567,7 @@ export default function ChatPage() {
         },
         body: JSON.stringify({ file_id: data.id }),
       }).then(async (res) => {
-        console.log('Edge Function response status:', res.status);
         const result = await res.json();
-        console.log('Edge Function result:', result);
-        
         if (res.ok && result.success) {
           // Update local state when processing completes
           setProjectFiles((prev) => ({
@@ -1658,13 +1576,8 @@ export default function ChatPage() {
               f.id === data.id ? { ...f, status: 'ready' as const } : f
             ),
           }));
-          console.log('File status updated to ready');
-        } else {
-          console.error('Edge Function failed:', result);
         }
-      }).catch((err) => {
-        console.error('Failed to process file:', err);
-      });
+      }).catch(() => {});
     }
   }, [brandId, userId, supabase]);
 
@@ -1689,9 +1602,6 @@ export default function ChatPage() {
       .from('project-files')
       .remove([fileToDelete.file_path]);
 
-    if (storageError) {
-      console.error('Failed to delete file from storage:', storageError.message);
-    }
 
     // Delete record
     const { error } = await supabase
@@ -1700,7 +1610,6 @@ export default function ChatPage() {
       .eq('id', fileId);
 
     if (error) {
-      console.error('Failed to delete file record:', error.message);
       alert(`Failed to delete file: ${error.message}`);
       return;
     }
@@ -1716,16 +1625,10 @@ export default function ChatPage() {
     // Allow sending if there's input text OR attachments
     const hasContent = input.trim() || (attachments && attachments.length > 0);
     
-    console.log('=== handleSendMessage called ===');
-    console.log('hasContent:', hasContent);
-    console.log('brandId:', brandId);
-    console.log('userId:', userId);
-    console.log('input:', input);
+    // For shared chats, use conversation's brand_id if user's brandId is not set
+    const effectiveBrandId = brandId || currentConversation?.brand_id;
     
-    if (!hasContent || !brandId || !userId) {
-      console.log('EARLY RETURN - missing:', { hasContent, brandId, userId });
-      return;
-    }
+    if (!hasContent || !effectiveBrandId || !userId) return;
 
     let conversation = currentConversation;
 
@@ -1735,12 +1638,10 @@ export default function ChatPage() {
         (attachments?.[0]?.file.name ? `Attached: ${attachments[0].file.name}` : 'New Chat');
       const title = titleBase.slice(0, 50) + (titleBase.length > 50 ? '...' : '');
       
-      console.log('Creating new conversation with:', { brand_id: brandId, user_id: userId, title, model: selectedModel });
-      
       const { data, error } = await supabase
         .from('conversations')
         .insert({
-          brand_id: brandId,
+          brand_id: effectiveBrandId,
           user_id: userId,
           project_id: pendingProjectId || currentProjectId,
           title,
@@ -1751,17 +1652,11 @@ export default function ChatPage() {
         .single();
 
       if (error) {
-        console.error('❌ Failed to create conversation:', error.message, error.details, error.code);
         alert(`Failed to create conversation: ${error.message}`);
         return;
       }
       
-      if (!data) {
-        console.error('❌ No data returned from conversation insert');
-        return;
-      }
-
-      console.log('✅ Conversation created:', data);
+      if (!data) return;
       conversation = data;
       setCurrentConversation(data);
       setConversations((prev) => [data, ...prev]);
@@ -1776,19 +1671,21 @@ export default function ChatPage() {
       dbContent = input.trim() ? input : `[Attached: ${attachmentNames}]`;
     }
 
-    // Save user message to database
+    // Save user message to database - include user_id for real-time dedup
     await saveMessageToDb({
       conversation_id: conversation.id,
       role: 'user',
       content: dbContent,
+      user_id: userId || undefined,
     });
 
-    // Send to AI (manual fetch with model)
+    // Send to AI
     const messageText = input;
     setInput('');
     
+    // Everyone can talk to AI in all chats (collaborative or not)
     sendMessage(messageText, attachments, options);
-  }, [input, brandId, userId, currentConversation, currentProjectId, sendMessage, selectedModel, supabase, pendingProjectId, pendingStylePreset]);
+  }, [input, brandId, userId, currentConversation, currentProjectId, sendMessage, selectedModel, supabase, pendingProjectId, pendingStylePreset, isCollaborativeChat, userName, userEmail]);
 
   // Regenerate last response
   const handleRegenerate = useCallback(async () => {
@@ -1804,7 +1701,6 @@ export default function ChatPage() {
   // Auto-send message when pendingAutoSend has a message (from project view)
   useEffect(() => {
     if (pendingAutoSend && brandId && userId && !isStreaming) {
-      console.log('Auto-sending message from project view:', pendingAutoSend);
       const messageToSend = pendingAutoSend;
       setPendingAutoSend(null);
       // Small delay to ensure state is settled, then call sendMessage directly

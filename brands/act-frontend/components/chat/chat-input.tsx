@@ -414,6 +414,41 @@ const PROMPT_SUGGESTIONS = [
   { trigger: 'best practices for', completion: 'creating' },
 ];
 
+// AI mention triggers for collaborative chats
+const AI_MENTIONS = [
+  '@AI',
+  '@Claude',
+  '@GPT', 
+  '@Gemini',
+  '@Assistant',
+] as const;
+
+// Check if message contains an AI mention (case-insensitive, allows space after @)
+export function hasAIMention(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  // Check exact mentions first
+  if (AI_MENTIONS.some(mention => lowerText.includes(mention.toLowerCase()))) {
+    return true;
+  }
+  // Also check for mentions with optional space after @ (e.g., "@ ai", "@ gpt")
+  const mentionNames = AI_MENTIONS.map(m => m.slice(1).toLowerCase()); // ['ai', 'claude', 'gpt', 'gemini', 'assistant']
+  return mentionNames.some(name => {
+    const regex = new RegExp(`@\\s*${name}\\b`, 'i');
+    return regex.test(text);
+  });
+}
+
+// Remove AI mentions from message for cleaner display
+export function removeAIMentions(text: string): string {
+  let result = text;
+  for (const mention of AI_MENTIONS) {
+    const regex = new RegExp(mention, 'gi');
+    result = result.replace(regex, '').trim();
+  }
+  // Clean up any double spaces
+  return result.replace(/\s+/g, ' ').trim();
+}
+
 // Style presets for AI responses
 const STYLE_PRESETS = [
   { id: 'normal' as const, label: 'Normal', icon: MessageSquare },
@@ -452,6 +487,8 @@ interface ChatInputProps {
 	selectedMcpServerIds?: string[];
 	onMcpServerSelectionChange?: (serverIds: string[]) => void;
 	onMcpServersLoaded?: (servers: MCPServer[]) => void;
+	// Collaborative chat mode - requires @mention to invoke AI
+	isCollaborative?: boolean;
 }
 
 export function ChatInput({
@@ -478,6 +515,7 @@ export function ChatInput({
 	selectedMcpServerIds = [],
 	onMcpServerSelectionChange,
 	onMcpServersLoaded,
+	isCollaborative = false,
 }: ChatInputProps) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -486,6 +524,7 @@ export function ChatInput({
 	const [useDeepResearch, setUseDeepResearch] = useState<boolean>(false);
 	const [mcpServers, setMcpServers] = useState<MCPServer[]>([]);
 	const [isMcpLoading, setIsMcpLoading] = useState(false);
+	const [showMentionHint, setShowMentionHint] = useState<string | null>(null);
   const selectedModel = AI_MODELS.find(m => m.id === model) || AI_MODELS[0];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -534,6 +573,26 @@ export function ChatInput({
       setUseDeepResearch(false);
     }
   }, [model, selectedModel.supportsWebSearch, selectedModel.supportsDeepResearch, useWebSearch, useDeepResearch]);
+
+  // Check for @mention autocomplete
+  const findMentionSuggestion = useCallback((text: string): string | null => {
+    if (!text) return null;
+    // Check if user is typing an @mention
+    const atIndex = text.lastIndexOf('@');
+    if (atIndex === -1) return null;
+    
+    const afterAt = text.slice(atIndex + 1).toLowerCase();
+    if (afterAt.length === 0) return 'AI'; // Suggest @AI when just @ is typed
+    
+    // Find matching mention
+    for (const mention of AI_MENTIONS) {
+      const mentionName = mention.slice(1).toLowerCase(); // Remove @ prefix
+      if (mentionName.startsWith(afterAt) && afterAt.length < mentionName.length) {
+        return mentionName.slice(afterAt.length); // Return rest of mention
+      }
+    }
+    return null;
+  }, []);
 
   // Find matching prediction based on input
   const findPrediction = useCallback((text: string): string => {
@@ -584,6 +643,15 @@ export function ChatInput({
     
     // Debounce prediction to avoid flickering
     predictionTimeoutRef.current = setTimeout(() => {
+      // First check for @mention suggestions
+      const mentionSuggestion = findMentionSuggestion(input);
+      if (mentionSuggestion) {
+        setPrediction(mentionSuggestion);
+        setShowMentionHint(mentionSuggestion);
+        return;
+      }
+      setShowMentionHint(null);
+      
       const newPrediction = findPrediction(input);
       setPrediction(newPrediction);
     }, 100);
@@ -593,7 +661,7 @@ export function ChatInput({
         clearTimeout(predictionTimeoutRef.current);
       }
     };
-  }, [input, isStreaming, isLoading, findPrediction]);
+  }, [input, isStreaming, isLoading, findPrediction, findMentionSuggestion]);
 
   // Accept prediction with Tab
   const acceptPrediction = useCallback(() => {
@@ -885,6 +953,7 @@ export function ChatInput({
             </div>
           )}
         </div>
+
 
         {/* Bottom Toolbar */}
         <div className="flex items-center justify-between px-3 py-2 border-t border-border/50">

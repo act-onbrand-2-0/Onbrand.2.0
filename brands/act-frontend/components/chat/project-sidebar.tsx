@@ -251,11 +251,11 @@ export function ProjectSidebar({
   );
 
   // Debug logging
-  console.log('Sidebar - currentUserId:', currentUserId);
-  console.log('Sidebar - total conversations:', conversations.length);
-  console.log('Sidebar - shared projects:', sharedProjects.length);
-  console.log('Sidebar - shared single chats:', sharedConversationsWithoutProject.length);
-  console.log('Sidebar - owned conversations:', ownedConversations.length);
+  //console.log('Sidebar - currentUserId:', currentUserId);
+  // console.log('Sidebar - total conversations:', conversations.length);
+  // console.log('Sidebar - shared projects:', sharedProjects.length);
+  // console.log('Sidebar - shared single chats:', sharedConversationsWithoutProject.length);
+  // console.log('Sidebar - owned conversations:', ownedConversations.length);
 
   // Group owned conversations by project
   // Conversations in default projects go to 'uncategorized' (shown in "General" section)

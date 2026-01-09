@@ -306,6 +306,7 @@ export function ChatContainer({
                   selectedMcpServerIds={selectedMcpServerIds}
                   onMcpServerSelectionChange={onMcpServerSelectionChange}
                   onMcpServersLoaded={onMcpServersLoaded}
+                  isCollaborative={isCollaborativeChat}
                 />
               )}
             </div>

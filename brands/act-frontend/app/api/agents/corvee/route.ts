@@ -62,33 +62,77 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call the n8n webhook
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(process.env.N8N_API_KEY && {
-          'X-N8N-API-KEY': process.env.N8N_API_KEY,
-        }),
-      },
-      body: JSON.stringify({ weekStart }),
-    });
+    // Call the n8n webhook with timeout (120 seconds for AI processing)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 seconds
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('n8n webhook error:', response.status, errorText);
-      throw new Error(`n8n webhook failed: ${response.statusText}`);
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(process.env.N8N_API_KEY && {
+            'X-N8N-API-KEY': process.env.N8N_API_KEY,
+          }),
+        },
+        body: JSON.stringify({ weekStart }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('n8n webhook error:', response.status, errorText);
+        
+        // If we get HTML back, it's likely an error page
+        if (errorText.trim().startsWith('<')) {
+          throw new Error(`n8n webhook returned error: ${response.status} ${response.statusText}. The webhook URL may be incorrect or the n8n workflow is not accessible.`);
+        }
+        
+        throw new Error(`n8n webhook failed: ${response.statusText}`);
+      }
+
+      // Check content type
+      const contentType = response.headers.get('content-type') || '';
+      
+      // Try to parse as JSON first (n8n might return { success, text })
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        // Handle different response formats
+        const schema = data.text || data.schema || data.result || JSON.stringify(data, null, 2);
+        
+        return NextResponse.json({
+          success: true,
+          schema,
+          weekStart,
+          generatedAt: new Date().toISOString(),
+        });
+      }
+
+      // Otherwise treat as text
+      const schema = await response.text();
+      
+      // If we get HTML back, something is wrong
+      if (schema.trim().startsWith('<')) {
+        throw new Error('n8n webhook returned HTML instead of expected data. Please verify the webhook URL and n8n workflow configuration.');
+      }
+
+      return NextResponse.json({
+        success: true,
+        schema,
+        weekStart,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        throw new Error('Request timed out after 120 seconds. The AI processing may be taking too long. Please try again or contact support.');
+      }
+      
+      throw fetchError;
     }
-
-    // n8n returns the markdown schema as text
-    const schema = await response.text();
-
-    return NextResponse.json({
-      success: true,
-      schema,
-      weekStart,
-      generatedAt: new Date().toISOString(),
-    });
   } catch (error) {
     console.error('Corvee API error:', error);
 

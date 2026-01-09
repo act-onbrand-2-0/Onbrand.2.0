@@ -88,8 +88,12 @@ export async function POST(request: NextRequest) {
       if (error.code === '23505') {
         return NextResponse.json({ message: 'Already reacted' }, { status: 200 });
       }
-      console.error('Error adding reaction:', error);
-      return NextResponse.json({ error: 'Failed to add reaction' }, { status: 500 });
+      // Foreign key violation - message doesn't exist
+      if (error.code === '23503') {
+        return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+      }
+      console.error('Error adding reaction:', error, 'Code:', error.code, 'Details:', error.details);
+      return NextResponse.json({ error: `Failed to add reaction: ${error.message}` }, { status: 500 });
     }
 
     return NextResponse.json({ reaction: data });

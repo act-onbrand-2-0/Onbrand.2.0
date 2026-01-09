@@ -1033,54 +1033,6 @@ export function ChatInput({
 									</div>
 									{useDeepResearch ? <Check className="size-4" /> : null}
 								</DropdownMenuItem>
-								{/* Connections submenu - only show enabled servers */}
-								{mcpServers.filter(s => s.enabled).length > 0 && (
-									<DropdownMenuSub>
-										<DropdownMenuSubTrigger className="flex items-center gap-2">
-											<Server className="size-4" />
-											<span>Connections</span>
-											{selectedMcpServerIds.length > 0 && (
-												<span className="ml-auto text-xs text-muted-foreground">
-													{selectedMcpServerIds.length}
-												</span>
-											)}
-										</DropdownMenuSubTrigger>
-										<DropdownMenuSubContent className="w-56">
-											<TooltipProvider delayDuration={300}>
-												{mcpServers.filter(s => s.enabled).map((server) => {
-													const isSelected = selectedMcpServerIds.includes(server.id);
-													const menuItem = (
-														<DropdownMenuItem
-															key={server.id}
-															onClick={() => handleToggleMcpServer(server.id)}
-															className="flex items-center justify-between gap-2"
-														>
-															<div className="flex items-center gap-2">
-																<Server className="size-4" />
-																<span>{server.name}</span>
-															</div>
-															{isSelected ? <Check className="size-4 text-green-500" /> : null}
-														</DropdownMenuItem>
-													);
-													
-													if (server.description) {
-														return (
-															<Tooltip key={server.id}>
-																<TooltipTrigger asChild>
-																	{menuItem}
-																</TooltipTrigger>
-																<TooltipContent side="right" className="max-w-[200px]">
-																	<p className="text-xs">{server.description}</p>
-																</TooltipContent>
-															</Tooltip>
-														);
-													}
-													return menuItem;
-												})}
-											</TooltipProvider>
-										</DropdownMenuSubContent>
-									</DropdownMenuSub>
-								)}
 								{/* Models submenu */}
 								<DropdownMenuSub>
 									<DropdownMenuSubTrigger className="flex items-center gap-2">

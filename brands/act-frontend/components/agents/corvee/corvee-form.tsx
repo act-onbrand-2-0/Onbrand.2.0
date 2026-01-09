@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { WeekPicker } from './week-picker';
 import { CorveeResult } from './corvee-result';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,45 @@ export function CorveeForm() {
   const [weekStart, setWeekStart] = useState<string>('');
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string>('');
+
+  // Poll for job status when we have a jobId
+  useEffect(() => {
+    if (!jobId) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/agents/corvee/status?jobId=${jobId}`);
+        const data = await response.json();
+
+        if (data.status === 'completed') {
+          clearInterval(pollInterval);
+          setJobId(null);
+          setLoading(false);
+          setResult({
+            schema: data.result.schema,
+            weekStart: data.result.weekStart,
+            generatedAt: data.completedAt,
+          });
+          toast.success('Schema succesvol gegenereerd!');
+          setStatusMessage('');
+        } else if (data.status === 'failed') {
+          clearInterval(pollInterval);
+          setJobId(null);
+          setLoading(false);
+          toast.error(data.error || 'Er is een fout opgetreden');
+          setStatusMessage('');
+        } else if (data.status === 'processing') {
+          setStatusMessage('AI analyseert gegevens...');
+        }
+      } catch (error) {
+        console.error('Status poll error:', error);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [jobId]);
 
   const generateSchema = async () => {
     if (!weekStart) {
@@ -33,12 +72,17 @@ export function CorveeForm() {
 
     setLoading(true);
     setResult(null);
+    setStatusMessage('Schema aanmaken...');
 
     try {
-      const response = await fetch('/api/agents/corvee', {
+      // Initiate the job
+      const response = await fetch('/api/agents/corvee/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weekStart }),
+        body: JSON.stringify({
+          weekStart,
+          brandId: 'act', // TODO: Get from context
+        }),
       });
 
       const data = await response.json();
@@ -47,20 +91,16 @@ export function CorveeForm() {
         throw new Error(data.error || 'Er is een fout opgetreden');
       }
 
-      setResult({
-        schema: data.schema,
-        weekStart: data.weekStart,
-        generatedAt: data.generatedAt,
-      });
-
-      toast.success('Schema succesvol gegenereerd!');
+      // Start polling for status
+      setJobId(data.jobId);
+      toast.info('Schema wordt gegenereerd... Dit kan tot 2 minuten duren.');
     } catch (error) {
       console.error('Generation error:', error);
       toast.error(
         error instanceof Error ? error.message : 'Er is een fout opgetreden'
       );
-    } finally {
       setLoading(false);
+      setStatusMessage('');
     }
   };
 
@@ -90,7 +130,7 @@ export function CorveeForm() {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Genereren...
+                  {statusMessage || 'Genereren...'}
                 </>
               ) : (
                 <>

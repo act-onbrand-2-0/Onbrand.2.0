@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PdfUpload } from './pdf-upload';
 import { BudgetResult } from './budget-result';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,45 @@ export function BudgetForm() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string>('');
+
+  // Poll for job status when we have a jobId
+  useEffect(() => {
+    if (!jobId) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/agents/budget/status?jobId=${jobId}`);
+        const data = await response.json();
+
+        if (data.status === 'completed') {
+          clearInterval(pollInterval);
+          setJobId(null);
+          setLoading(false);
+          setResult({
+            budget: data.result.budget,
+            fileName: data.result.fileName,
+            generatedAt: data.completedAt,
+          });
+          toast.success('Budget succesvol gegenereerd!');
+          setStatusMessage('');
+        } else if (data.status === 'failed') {
+          clearInterval(pollInterval);
+          setJobId(null);
+          setLoading(false);
+          toast.error(data.error || 'Er is een fout opgetreden');
+          setStatusMessage('');
+        } else if (data.status === 'processing') {
+          setStatusMessage('AI analyseert briefing...');
+        }
+      } catch (error) {
+        console.error('Status poll error:', error);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [jobId]);
 
   const generateBudget = async () => {
     if (!file) {
@@ -33,12 +72,14 @@ export function BudgetForm() {
 
     setLoading(true);
     setResult(null);
+    setStatusMessage('Budget aanmaken...');
 
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('brandId', 'act'); // TODO: Get from context
 
-      const response = await fetch('/api/agents/budget', {
+      const response = await fetch('/api/agents/budget/initiate', {
         method: 'POST',
         body: formData,
       });
@@ -49,23 +90,16 @@ export function BudgetForm() {
         throw new Error(data.error || 'Er is een fout opgetreden');
       }
 
-      // Handle response - n8n returns { success: true, text: "markdown content" }
-      const budgetContent = data.text || data.budget || JSON.stringify(data, null, 2);
-
-      setResult({
-        budget: budgetContent,
-        fileName: data.fileName || file.name,
-        generatedAt: data.generatedAt || new Date().toISOString(),
-      });
-
-      toast.success('Budget succesvol gegenereerd!');
+      // Start polling for status
+      setJobId(data.jobId);
+      toast.info('Budget wordt gegenereerd... Dit kan tot 2 minuten duren.');
     } catch (error) {
       console.error('Generation error:', error);
       toast.error(
         error instanceof Error ? error.message : 'Er is een fout opgetreden'
       );
-    } finally {
       setLoading(false);
+      setStatusMessage('');
     }
   };
 
@@ -93,7 +127,7 @@ export function BudgetForm() {
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Budget wordt gegenereerd...
+                {statusMessage || 'Budget wordt gegenereerd...'}
               </>
             ) : (
               <>

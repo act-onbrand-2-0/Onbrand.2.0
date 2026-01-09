@@ -304,7 +304,7 @@ export async function POST(request: NextRequest) {
                         ${permission === 'write' ? 'You can collaborate and send messages in this chat.' : 'You can view this conversation.'}
                       </p>
                       ${message ? `<p style="color: #666; font-size: 14px; background: #f5f5f5; padding: 12px; border-radius: 8px; margin: 16px 0;"><em>"${message}"</em></p>` : ''}
-                      <a href="${baseUrl}/dashboard/chat" style="display: inline-block; background: #0066ff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; margin-top: 16px;">
+                      <a href="${baseUrl}/dashboard/chat?c=${conversationId}" style="display: inline-block; background: #0066ff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; margin-top: 16px;">
                         Open Chat
                       </a>
                       <p style="color: #888; font-size: 12px; margin-top: 24px;">

@@ -14,7 +14,9 @@ const createResendClient = () => {
 const roleDisplayNames: Record<string, string> = {
   owner: 'Owner',
   admin: 'Admin',
-  member: 'Member',
+  editor: 'Editor',
+  reviewer: 'Reviewer',
+  user: 'Member',
 };
 
 // PATCH /api/brand-members/role - Update a team member's role
@@ -39,7 +41,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Member ID and new role are required' }, { status: 400 });
     }
 
-    const validRoles = ['owner', 'admin', 'member'];
+    const validRoles = ['owner', 'admin', 'editor', 'reviewer', 'user'];
     if (!validRoles.includes(newRole)) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
     }
@@ -98,7 +100,7 @@ export async function PATCH(request: NextRequest) {
 
     if (updateError) {
       console.error('Error updating role:', updateError);
-      return NextResponse.json({ error: 'Failed to update role' }, { status: 500 });
+      return NextResponse.json({ error: `Failed to update role: ${updateError.message}` }, { status: 500 });
     }
 
     // Get target user details for notification

@@ -50,13 +50,25 @@ interface TeamManagerProps {
 const roleColors: Record<string, string> = {
   owner: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   admin: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  member: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  editor: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  reviewer: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+  user: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+};
+
+const roleDisplayNames: Record<string, string> = {
+  owner: 'Owner',
+  admin: 'Admin',
+  editor: 'Editor',
+  reviewer: 'Reviewer',
+  user: 'Member',
 };
 
 const roleIcons: Record<string, React.ReactNode> = {
   owner: <Crown className="h-3 w-3 mr-1" />,
   admin: <Shield className="h-3 w-3 mr-1" />,
-  member: null,
+  editor: null,
+  reviewer: null,
+  user: null,
 };
 
 export function TeamManager({ brandId, userRole }: TeamManagerProps) {
@@ -238,9 +250,9 @@ export function TeamManager({ brandId, userRole }: TeamManagerProps) {
                 </p>
               </div>
 
-              <Badge className={roleColors[member.role] || roleColors.member} variant="secondary">
+              <Badge className={roleColors[member.role] || roleColors.user} variant="secondary">
                 {roleIcons[member.role]}
-                {member.role}
+                {roleDisplayNames[member.role] || member.role}
               </Badge>
 
               {isOwner && (
@@ -270,8 +282,8 @@ export function TeamManager({ brandId, userRole }: TeamManagerProps) {
                       Make Admin
                     </DropdownMenuItem>
                     <DropdownMenuItem 
-                      onClick={() => handleRoleChange(member.id, 'member')}
-                      disabled={member.role === 'member'}
+                      onClick={() => handleRoleChange(member.id, 'user')}
+                      disabled={member.role === 'user'}
                     >
                       <Users className="h-4 w-4 mr-2 text-green-500" />
                       Make Member

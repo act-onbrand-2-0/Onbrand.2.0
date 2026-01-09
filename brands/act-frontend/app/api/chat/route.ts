@@ -311,6 +311,13 @@ Be concise but thorough. Use markdown formatting when appropriate.${projectConte
     for (let index = 0; index < messages.length; index++) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const m = messages[index] as any;
+      
+      // Skip system messages (like "X joined the chat") - LLMs only accept user/assistant in messages array
+      // System context should be passed via the system parameter, not in messages
+      if (m.role === 'system') {
+        continue;
+      }
+      
       let content = m.content;
       
       // If content is not a string, try to extract from parts (AI SDK 5 format)

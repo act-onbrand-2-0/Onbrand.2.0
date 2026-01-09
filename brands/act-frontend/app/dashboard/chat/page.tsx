@@ -262,7 +262,9 @@ export default function ChatPage() {
       }
       
       // Build messages for API - use state directly
+      // Filter out system messages (like "X joined the chat") as LLMs only accept user/assistant in messages array
       const currentMessages = [...aiMessages, userMsg]
+        .filter(m => m.role !== 'system') // Exclude system messages - they're informational only
         .map(m => ({ role: m.role, content: m.content || '' }))
         .filter(m => m.content.trim()); // Only filter truly empty messages
       

@@ -254,6 +254,7 @@ export default function ChatPage() {
       }
       
       // Get current messages for API call
+      // Note: System messages are filtered server-side in route.ts
       const currentMessages = [...aiMessages, userMsg].map(m => ({ role: m.role, content: m.content }));
       
       const apiBody = {
